@@ -1,4 +1,4 @@
-use serde_json::json;
+use mysql::prelude::Queryable;
 use log::error;
 use crate::error::{Error, Result};
 use super::DbPool;
@@ -11,7 +11,7 @@ pub struct User {
     pub is_bot: bool,
 }
 
-pub struct Message {
+pub struct DbMessage {
     pub message_id: i64,
     pub user_id: i64,
     pub chat_id: i64,
@@ -56,10 +56,10 @@ impl DbPool {
         Ok(())
     }
 
-    pub async fn insert_message(&self, msg: &Message) -> Result<()> {
+    pub async fn insert_message(&self, msg: &DbMessage) -> Result<()> {
         let mut conn = self.get_connection()?;
 
-        let query = "INSERT INTO messages (message_id, user_id, chat_id, text, message_type)
+        let query = "INSERT IGNORE INTO messages (message_id, user_id, chat_id, text, message_type)
                     VALUES (?, ?, ?, ?, ?)";
 
         conn.exec_drop(query, (&msg.message_id, &msg.user_id, &msg.chat_id, &msg.text, &msg.message_type))

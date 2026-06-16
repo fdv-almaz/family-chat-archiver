@@ -158,7 +158,7 @@ def insert_message(message_id, user_id, chat_id, text, message_type):
 
     try:
         cursor.execute("""
-            INSERT INTO messages (message_id, user_id, chat_id, text, message_type)
+            INSERT IGNORE INTO messages (message_id, user_id, chat_id, text, message_type)
             VALUES (%s, %s, %s, %s, %s)
         """, (message_id, user_id, chat_id, text, message_type))
         conn.commit()

@@ -3,7 +3,6 @@ import signal
 import sys
 import json
 import re
-import time
 from telebot import TeleBot, types
 
 import config
@@ -56,6 +55,10 @@ def handle_text_message(message: types.Message):
         if not message.text:
             return
 
+        # Skip messages from bots (including self) to prevent loops
+        if message.from_user and message.from_user.is_bot:
+            return
+
         # Save user
         insert_or_update_user(message.from_user)
 
@@ -101,6 +104,9 @@ def handle_text_message(message: types.Message):
 @bot.message_handler(content_types=['photo'])
 def handle_photo_message(message: types.Message):
     try:
+        if message.from_user and message.from_user.is_bot:
+            return
+
         insert_or_update_user(message.from_user)
 
         caption = message.caption or ''
@@ -147,6 +153,9 @@ def handle_photo_message(message: types.Message):
 @bot.message_handler(content_types=['video', 'document', 'voice'])
 def handle_media_message(message: types.Message):
     try:
+        if message.from_user and message.from_user.is_bot:
+            return
+
         insert_or_update_user(message.from_user)
 
         message_type = None
@@ -207,7 +216,12 @@ def handle_media_message(message: types.Message):
     except Exception as e:
         logger.error(f'Error handling media message: {e}')
 
-@bot.message_handler(func=lambda message: True)
+@bot.message_handler(content_types=[
+    'new_chat_members', 'left_chat_member', 'new_chat_title',
+    'new_chat_photo', 'delete_chat_photo', 'group_chat_created',
+    'supergroup_chat_created', 'channel_chat_created',
+    'migrate_to_chat_id', 'migrate_from_chat_id', 'pinned_message'
+])
 def handle_other_events(message: types.Message):
     try:
         event_type = None
@@ -231,6 +245,8 @@ def handle_other_events(message: types.Message):
             event_type = 'supergroup_created'
         elif message.channel_chat_created:
             event_type = 'channel_created'
+        elif message.pinned_message:
+            event_type = 'message_pinned'
 
         if event_type:
             data = {
@@ -262,37 +278,15 @@ def main():
         create_tables()
         logger.info('Database initialized')
 
-        # Start polling with reconnection logic
+        # infinity_polling has built-in retry and won't raise on network errors
+        # restart_on_change=False prevents auto-restart on code changes
         logger.info('Bot started, polling for messages...')
-        retry_count = 0
-        max_retries = 5
-        retry_delay = 5
-
-        while running:
-            try:
-                bot.infinity_polling(timeout=30, long_polling_timeout=30)
-            except KeyboardInterrupt:
-                logger.info('Bot stopped by user')
-                break
-            except (ConnectionError, TimeoutError) as e:
-                retry_count += 1
-                if retry_count <= max_retries:
-                    logger.warning(f'Connection error (attempt {retry_count}/{max_retries}): {e}')
-                    logger.info(f'Reconnecting in {retry_delay} seconds...')
-                    time.sleep(retry_delay)
-                    retry_delay = min(retry_delay * 2, 60)
-                else:
-                    logger.error(f'Max retries ({max_retries}) exceeded. Stopping bot.')
-                    raise
-            except Exception as e:
-                logger.error(f'Unexpected error: {e}')
-                retry_count += 1
-                if retry_count <= max_retries:
-                    logger.info(f'Retrying in {retry_delay} seconds...')
-                    time.sleep(retry_delay)
-                    retry_delay = min(retry_delay * 2, 60)
-                else:
-                    raise
+        bot.infinity_polling(
+            timeout=30,
+            long_polling_timeout=30,
+            restart_on_change=False,
+            logger_level=logging.WARNING
+        )
 
     except KeyboardInterrupt:
         logger.info('Bot stopped by user')

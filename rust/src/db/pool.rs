@@ -1,4 +1,5 @@
-use mysql::{Pool, Opts, OptsBuilder};
+use mysql::{Pool, OptsBuilder};
+use mysql::prelude::Queryable;
 use std::sync::Arc;
 use log::info;
 use crate::config::Config;
