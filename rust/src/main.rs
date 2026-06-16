@@ -204,12 +204,9 @@ async fn handle_text_message(
                 error!("Failed to save spelling correction: {}", e);
             }
 
-            // Send correction to chat
+            // Send correction to chat (visible to all)
             if let Some(correction_msg) = format_chat_message(text, &corrected_text, &errors) {
-                let _ = bot
-                    .send_message(message.chat.id, correction_msg)
-                    .reply_to_message_id(message.id)
-                    .await;
+                let _ = bot.send_message(message.chat.id, correction_msg).await;
             }
         }
         Err(e) => error!("Spelling check failed: {}", e),

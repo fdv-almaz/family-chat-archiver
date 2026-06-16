@@ -88,10 +88,10 @@ def handle_text_message(message: types.Message):
                 sent_to_chat=True
             )
 
-            # Send correction to chat
+            # Send correction to chat (visible to all)
             correction_message = format_chat_message(message.text, corrected_text, processed_errors)
             if correction_message:
-                bot.reply_to(message, correction_message)
+                bot.send_message(message.chat.id, correction_message)
 
         logger.debug(f'Text message processed: user={message.from_user.id}, message_id={message.message_id}')
 
@@ -137,7 +137,7 @@ def handle_photo_message(message: types.Message):
                 )
                 correction_message = format_chat_message(caption, corrected_text, processed_errors)
                 if correction_message:
-                    bot.reply_to(message, correction_message)
+                    bot.send_message(message.chat.id, correction_message)
 
         logger.debug(f'Photo message processed: user={message.from_user.id}, message_id={message.message_id}')
 
@@ -200,7 +200,7 @@ def handle_media_message(message: types.Message):
                 )
                 correction_message = format_chat_message(caption, corrected_text, processed_errors)
                 if correction_message:
-                    bot.reply_to(message, correction_message)
+                    bot.send_message(message.chat.id, correction_message)
 
         logger.debug(f'{message_type} message processed: user={message.from_user.id}, message_id={message.message_id}')
 

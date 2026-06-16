@@ -79,15 +79,23 @@ def format_chat_message(text: str, corrected_text: str, errors: List[Dict]) -> s
         return None
 
     lines = [
-        '<b>Исправление орфографии:</b>',
-        f'<i>Оригинал:</i> <code>{text}</code>',
-        f'<i>Исправлено:</i> <code>{corrected_text}</code>',
-        '\n<b>Ошибки:</b>'
+        '📚 <b>Орфографическая подсказка!</b>',
+        '',
+        f'<i>Было:</i> <code>{text}</code>',
+        f'<i>✨ Будет:</i> <code>{corrected_text}</code>',
+        '',
+        '🎯 <b>Что исправить:</b>'
     ]
 
     for error in errors:
         original = error['original']
-        suggestions = ' / '.join(error['all_suggestions'][:3])
-        lines.append(f'• <code>{original}</code> → {suggestions}')
+        suggestions = ', '.join(error['all_suggestions'][:3])
+        lines.append(f'  • <b>{original}</b> → <i>{suggestions}</i>')
+
+    lines.extend([
+        '',
+        '💡 <i>Совет: обрати внимание на эти слова в следующий раз!</i>',
+        '😊 <b>Спасибо за внимание к орфографии!</b>'
+    ])
 
     return '\n'.join(lines)
