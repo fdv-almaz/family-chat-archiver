@@ -51,6 +51,7 @@ th, td { padding: 8px 12px; border-bottom: 1px solid #eee; text-align: left; ver
 th { background: #f8f9fc; font-weight: 600; }
 tr:hover td { background: #fafbfd; }
 .text-cell { max-width: 600px; }
+.num { text-align: right; color: #888; font-variant-numeric: tabular-nums; width: 1%; white-space: nowrap; }
 .text-cell audio { width: 100%; max-width: 360px; height: 32px; margin-top: 6px; display: block; }
 .text-cell video.thumb { max-width: 240px; max-height: 180px; margin-top: 6px; border-radius: 4px; display: block; }
 .text-cell img.thumb { max-width: 180px; max-height: 180px; margin-top: 6px; border-radius: 4px; display: block; }

@@ -45,6 +45,7 @@
 <table class="messages">
   <thead>
     <tr>
+      <th class="num">№</th>
       <th>Когда</th>
       <th>Кто</th>
       <th>Чат</th>
@@ -56,6 +57,7 @@
   <tbody>
     {% for m in messages %}
       <tr>
+        <td class="num">{{ (page - 1) * page_size + loop.index }}</td>
         <td class="nowrap">{{ m.created_at.strftime('%Y-%m-%d %H:%M') if m.created_at else '' }}</td>
         <td>
           <a href="/?user_id={{ m.user_id }}">
