@@ -28,6 +28,12 @@
   <input type="date" name="date_from" value="{{ filters.date_from or '' }}">
   <input type="date" name="date_to" value="{{ filters.date_to or '' }}">
 
+  <select name="page_size" title="Строк на странице">
+    {% for n in page_size_options %}
+      <option value="{{ n }}" {% if page_size == n %}selected{% endif %}>{{ n }} / стр.</option>
+    {% endfor %}
+  </select>
+
   {% if filters.user_id %}
     <input type="hidden" name="user_id" value="{{ filters.user_id }}">
   {% endif %}

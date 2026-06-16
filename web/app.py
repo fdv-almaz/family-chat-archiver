@@ -17,7 +17,8 @@ app = FastAPI(title="Family Chat Archiver — Web")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-PAGE_SIZE = 50
+DEFAULT_PAGE_SIZE = 100
+ALLOWED_PAGE_SIZES = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
 
 
 def _to_int(v):
@@ -40,15 +41,18 @@ def index(
     date_to: str | None = Query(None),
     q: str | None = Query(None),
     page: int = Query(1, ge=1),
+    page_size: int = Query(DEFAULT_PAGE_SIZE),
 ):
     chat_id = _to_int(chat_id)
     user_id = _to_int(user_id)
     message_type = message_type or None
-    offset = (page - 1) * PAGE_SIZE
+    if page_size not in ALLOWED_PAGE_SIZES:
+        page_size = DEFAULT_PAGE_SIZE
+    offset = (page - 1) * page_size
     messages = db.list_messages(
         chat_id=chat_id, user_id=user_id, message_type=message_type,
         date_from=date_from or None, date_to=date_to or None,
-        search=q or None, limit=PAGE_SIZE, offset=offset
+        search=q or None, limit=page_size, offset=offset
     )
     total = db.count_messages(
         chat_id=chat_id, user_id=user_id, message_type=message_type,
@@ -60,14 +64,16 @@ def index(
         "messages": messages,
         "total": total,
         "page": page,
-        "page_size": PAGE_SIZE,
-        "total_pages": (total + PAGE_SIZE - 1) // PAGE_SIZE,
+        "page_size": page_size,
+        "page_size_options": ALLOWED_PAGE_SIZES,
+        "total_pages": (total + page_size - 1) // page_size,
         "chats": db.list_chats(),
         "message_types": db.list_message_types(),
         "filters": {
             "chat_id": chat_id, "user_id": user_id,
             "message_type": message_type,
             "date_from": date_from, "date_to": date_to, "q": q,
+            "page_size": page_size if page_size != DEFAULT_PAGE_SIZE else None,
         },
     })
 
