@@ -59,26 +59,73 @@ def create_tables():
             CREATE TABLE IF NOT EXISTS messages (
                 message_id BIGINT PRIMARY KEY,
                 user_id BIGINT,
+                user_username VARCHAR(32),
+                user_first_name VARCHAR(255),
+                user_last_name VARCHAR(255),
                 chat_id BIGINT,
+                chat_title VARCHAR(255),
+                chat_type VARCHAR(20),
                 text LONGTEXT,
-                message_type ENUM('text', 'photo', 'video', 'document', 'voice', 'service'),
+                message_type VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+                INDEX idx_chat_date (chat_id, created_at),
+                INDEX idx_user_date (user_id, created_at)
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
         """)
+
+        # Auto-add columns if table existed before with old schema
+        for col_def in [
+            ("user_username", "VARCHAR(32)"),
+            ("user_first_name", "VARCHAR(255)"),
+            ("user_last_name", "VARCHAR(255)"),
+            ("chat_title", "VARCHAR(255)"),
+            ("chat_type", "VARCHAR(20)"),
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE messages ADD COLUMN {col_def[0]} {col_def[1]}")
+                logger.info(f'Added column {col_def[0]} to messages table')
+            except Error:
+                pass  # Column already exists
+
+        # Migrate message_type from ENUM to VARCHAR if needed (to allow new types)
+        try:
+            cursor.execute("ALTER TABLE messages MODIFY COLUMN message_type VARCHAR(20)")
+        except Error:
+            pass
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS media (
                 media_id INT AUTO_INCREMENT PRIMARY KEY,
                 message_id BIGINT,
-                type ENUM('photo', 'video', 'document', 'voice'),
+                type VARCHAR(20),
                 file_id VARCHAR(255),
                 file_unique_id VARCHAR(255),
-                file_size INT,
+                file_name VARCHAR(255),
+                file_size BIGINT,
+                duration INT,
                 mime_type VARCHAR(100),
-                FOREIGN KEY (message_id) REFERENCES messages(message_id) ON DELETE CASCADE
+                FOREIGN KEY (message_id) REFERENCES messages(message_id) ON DELETE CASCADE,
+                INDEX idx_message_id (message_id),
+                INDEX idx_type (type)
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
         """)
+
+        # Migrate media columns for existing DBs
+        try:
+            cursor.execute("ALTER TABLE media MODIFY COLUMN type VARCHAR(20)")
+        except Error:
+            pass
+        try:
+            cursor.execute("ALTER TABLE media MODIFY COLUMN file_size BIGINT")
+        except Error:
+            pass
+        for col_def in [("file_name", "VARCHAR(255)"), ("duration", "INT")]:
+            try:
+                cursor.execute(f"ALTER TABLE media ADD COLUMN {col_def[0]} {col_def[1]}")
+                logger.info(f'Added column {col_def[0]} to media table')
+            except Error:
+                pass
 
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS links (
@@ -107,12 +154,26 @@ def create_tables():
             CREATE TABLE IF NOT EXISTS service_events (
                 event_id INT AUTO_INCREMENT PRIMARY KEY,
                 chat_id BIGINT,
+                chat_title VARCHAR(255),
                 event_type VARCHAR(50),
                 user_id BIGINT,
+                user_username VARCHAR(32),
+                user_first_name VARCHAR(255),
                 data JSON,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
         """)
+
+        for col_def in [
+            ("chat_title", "VARCHAR(255)"),
+            ("user_username", "VARCHAR(32)"),
+            ("user_first_name", "VARCHAR(255)"),
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE service_events ADD COLUMN {col_def[0]} {col_def[1]}")
+                logger.info(f'Added column {col_def[0]} to service_events table')
+            except Error:
+                pass
 
         conn.commit()
         logger.info('All tables created/verified successfully')
@@ -151,16 +212,21 @@ def insert_or_update_user(user):
         cursor.close()
         conn.close()
 
-def insert_message(message_id, user_id, chat_id, text, message_type):
+def insert_message(message_id, user_id, chat_id, text, message_type,
+                   user_username=None, user_first_name=None, user_last_name=None,
+                   chat_title=None, chat_type=None):
     db = DBPool()
     conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute("""
-            INSERT IGNORE INTO messages (message_id, user_id, chat_id, text, message_type)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (message_id, user_id, chat_id, text, message_type))
+            INSERT IGNORE INTO messages
+            (message_id, user_id, user_username, user_first_name, user_last_name,
+             chat_id, chat_title, chat_type, text, message_type)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (message_id, user_id, user_username, user_first_name, user_last_name,
+              chat_id, chat_title, chat_type, text, message_type))
         conn.commit()
     except Error as e:
         logger.error(f'Failed to insert message {message_id}: {e}')
@@ -169,16 +235,19 @@ def insert_message(message_id, user_id, chat_id, text, message_type):
         cursor.close()
         conn.close()
 
-def insert_media(message_id, media_type, file_id, file_unique_id, file_size=None, mime_type=None):
+def insert_media(message_id, media_type, file_id, file_unique_id,
+                 file_size=None, mime_type=None, file_name=None, duration=None):
     db = DBPool()
     conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute("""
-            INSERT INTO media (message_id, type, file_id, file_unique_id, file_size, mime_type)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (message_id, media_type, file_id, file_unique_id, file_size, mime_type))
+            INSERT INTO media
+            (message_id, type, file_id, file_unique_id, file_name, file_size, duration, mime_type)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (message_id, media_type, file_id, file_unique_id,
+              file_name, file_size, duration, mime_type))
         conn.commit()
     except Error as e:
         logger.error(f'Failed to insert media for message {message_id}: {e}')
@@ -224,16 +293,18 @@ def insert_spelling_correction(message_id, original_text, corrected_text, errors
         cursor.close()
         conn.close()
 
-def insert_service_event(chat_id, event_type, user_id=None, data_json=None):
+def insert_service_event(chat_id, event_type, user_id=None, data_json=None,
+                         chat_title=None, user_username=None, user_first_name=None):
     db = DBPool()
     conn = db.get_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute("""
-            INSERT INTO service_events (chat_id, event_type, user_id, data)
-            VALUES (%s, %s, %s, %s)
-        """, (chat_id, event_type, user_id, data_json))
+            INSERT INTO service_events
+            (chat_id, chat_title, event_type, user_id, user_username, user_first_name, data)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (chat_id, chat_title, event_type, user_id, user_username, user_first_name, data_json))
         conn.commit()
     except Error as e:
         logger.error(f'Failed to insert service event: {e}')

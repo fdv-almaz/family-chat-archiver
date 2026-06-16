@@ -14,7 +14,12 @@ pub struct User {
 pub struct DbMessage {
     pub message_id: i64,
     pub user_id: i64,
+    pub user_username: Option<String>,
+    pub user_first_name: Option<String>,
+    pub user_last_name: Option<String>,
     pub chat_id: i64,
+    pub chat_title: Option<String>,
+    pub chat_type: Option<String>,
     pub text: Option<String>,
     pub message_type: String,
 }
@@ -24,7 +29,9 @@ pub struct Media {
     pub media_type: String,
     pub file_id: String,
     pub file_unique_id: String,
-    pub file_size: Option<i32>,
+    pub file_name: Option<String>,
+    pub file_size: Option<i64>,
+    pub duration: Option<i32>,
     pub mime_type: Option<String>,
 }
 
@@ -59,14 +66,21 @@ impl DbPool {
     pub async fn insert_message(&self, msg: &DbMessage) -> Result<()> {
         let mut conn = self.get_connection()?;
 
-        let query = "INSERT IGNORE INTO messages (message_id, user_id, chat_id, text, message_type)
-                    VALUES (?, ?, ?, ?, ?)";
+        let query = "INSERT IGNORE INTO messages
+                    (message_id, user_id, user_username, user_first_name, user_last_name,
+                     chat_id, chat_title, chat_type, text, message_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-        conn.exec_drop(query, (&msg.message_id, &msg.user_id, &msg.chat_id, &msg.text, &msg.message_type))
-            .map_err(|e| {
-                error!("Failed to insert message {}: {}", msg.message_id, e);
-                Error::Database(format!("Failed to insert message: {}", e))
-            })?;
+        conn.exec_drop(query, (
+            &msg.message_id, &msg.user_id,
+            &msg.user_username, &msg.user_first_name, &msg.user_last_name,
+            &msg.chat_id, &msg.chat_title, &msg.chat_type,
+            &msg.text, &msg.message_type,
+        ))
+        .map_err(|e| {
+            error!("Failed to insert message {}: {}", msg.message_id, e);
+            Error::Database(format!("Failed to insert message: {}", e))
+        })?;
 
         Ok(())
     }
@@ -74,15 +88,18 @@ impl DbPool {
     pub async fn insert_media(&self, media: &Media) -> Result<()> {
         let mut conn = self.get_connection()?;
 
-        let query = "INSERT INTO media (message_id, type, file_id, file_unique_id, file_size, mime_type)
-                    VALUES (?, ?, ?, ?, ?, ?)";
+        let query = "INSERT INTO media
+                    (message_id, type, file_id, file_unique_id, file_name, file_size, duration, mime_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
         conn.exec_drop(query, (
             &media.message_id,
             &media.media_type,
             &media.file_id,
             &media.file_unique_id,
+            &media.file_name,
             &media.file_size,
+            &media.duration,
             &media.mime_type,
         ))
         .map_err(|e| {
@@ -129,19 +146,32 @@ impl DbPool {
         Ok(())
     }
 
-    pub async fn insert_service_event(&self, chat_id: i64, event_type: &str, user_id: Option<i64>, data: serde_json::Value) -> Result<()> {
+    pub async fn insert_service_event(
+        &self,
+        chat_id: i64,
+        chat_title: Option<&str>,
+        event_type: &str,
+        user_id: Option<i64>,
+        user_username: Option<&str>,
+        user_first_name: Option<&str>,
+        data: serde_json::Value,
+    ) -> Result<()> {
         let mut conn = self.get_connection()?;
 
-        let query = "INSERT INTO service_events (chat_id, event_type, user_id, data)
-                    VALUES (?, ?, ?, ?)";
+        let query = "INSERT INTO service_events
+                    (chat_id, chat_title, event_type, user_id, user_username, user_first_name, data)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         let data_str = data.to_string();
 
-        conn.exec_drop(query, (chat_id, event_type, user_id, data_str))
-            .map_err(|e| {
-                error!("Failed to insert service event: {}", e);
-                Error::Database(format!("Failed to insert service event: {}", e))
-            })?;
+        conn.exec_drop(query, (
+            chat_id, chat_title, event_type, user_id,
+            user_username, user_first_name, data_str,
+        ))
+        .map_err(|e| {
+            error!("Failed to insert service event: {}", e);
+            Error::Database(format!("Failed to insert service event: {}", e))
+        })?;
 
         Ok(())
     }

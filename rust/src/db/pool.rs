@@ -50,22 +50,33 @@ impl DbPool {
             "CREATE TABLE IF NOT EXISTS messages (
                 message_id BIGINT PRIMARY KEY,
                 user_id BIGINT,
+                user_username VARCHAR(32),
+                user_first_name VARCHAR(255),
+                user_last_name VARCHAR(255),
                 chat_id BIGINT,
+                chat_title VARCHAR(255),
+                chat_type VARCHAR(20),
                 text LONGTEXT,
-                message_type ENUM('text', 'photo', 'video', 'document', 'voice', 'service'),
+                message_type VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
+                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+                INDEX idx_chat_date (chat_id, created_at),
+                INDEX idx_user_date (user_id, created_at)
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
 
             "CREATE TABLE IF NOT EXISTS media (
                 media_id INT AUTO_INCREMENT PRIMARY KEY,
                 message_id BIGINT,
-                type ENUM('photo', 'video', 'document', 'voice'),
+                type VARCHAR(20),
                 file_id VARCHAR(255),
                 file_unique_id VARCHAR(255),
-                file_size INT,
+                file_name VARCHAR(255),
+                file_size BIGINT,
+                duration INT,
                 mime_type VARCHAR(100),
-                FOREIGN KEY (message_id) REFERENCES messages(message_id) ON DELETE CASCADE
+                FOREIGN KEY (message_id) REFERENCES messages(message_id) ON DELETE CASCADE,
+                INDEX idx_message_id (message_id),
+                INDEX idx_type (type)
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
 
             "CREATE TABLE IF NOT EXISTS links (
@@ -90,8 +101,11 @@ impl DbPool {
             "CREATE TABLE IF NOT EXISTS service_events (
                 event_id INT AUTO_INCREMENT PRIMARY KEY,
                 chat_id BIGINT,
+                chat_title VARCHAR(255),
                 event_type VARCHAR(50),
                 user_id BIGINT,
+                user_username VARCHAR(32),
+                user_first_name VARCHAR(255),
                 data JSON,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
@@ -100,6 +114,27 @@ impl DbPool {
         for query in queries {
             conn.query_drop(query)
                 .map_err(|e| Error::Database(format!("Failed to create table: {}", e)))?;
+        }
+
+        // Auto-add columns if table existed with old schema (idempotent migrations)
+        let migrations = vec![
+            "ALTER TABLE messages ADD COLUMN user_username VARCHAR(32)",
+            "ALTER TABLE messages ADD COLUMN user_first_name VARCHAR(255)",
+            "ALTER TABLE messages ADD COLUMN user_last_name VARCHAR(255)",
+            "ALTER TABLE messages ADD COLUMN chat_title VARCHAR(255)",
+            "ALTER TABLE messages ADD COLUMN chat_type VARCHAR(20)",
+            "ALTER TABLE messages MODIFY COLUMN message_type VARCHAR(20)",
+            "ALTER TABLE media MODIFY COLUMN type VARCHAR(20)",
+            "ALTER TABLE media MODIFY COLUMN file_size BIGINT",
+            "ALTER TABLE media ADD COLUMN file_name VARCHAR(255)",
+            "ALTER TABLE media ADD COLUMN duration INT",
+            "ALTER TABLE service_events ADD COLUMN chat_title VARCHAR(255)",
+            "ALTER TABLE service_events ADD COLUMN user_username VARCHAR(32)",
+            "ALTER TABLE service_events ADD COLUMN user_first_name VARCHAR(255)",
+        ];
+
+        for migration in migrations {
+            let _ = conn.query_drop(migration); // Ignore errors (column may already exist)
         }
 
         info!("All tables created/verified successfully");

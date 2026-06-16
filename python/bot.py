@@ -16,6 +16,25 @@ logger = logging.getLogger(__name__)
 bot = TeleBot(config.TELEGRAM_BOT_TOKEN, parse_mode='HTML')
 running = True
 
+def extract_chat_title(chat) -> str:
+    """Get chat title for groups/channels or 'first_name last_name' for private chats."""
+    if chat.title:
+        return chat.title
+    parts = [chat.first_name, chat.last_name]
+    return ' '.join(p for p in parts if p) or None
+
+def message_context(message: types.Message) -> dict:
+    """Extract user and chat context for message insertion."""
+    user = message.from_user
+    chat = message.chat
+    return {
+        'user_username': user.username if user else None,
+        'user_first_name': user.first_name if user else None,
+        'user_last_name': user.last_name if user else None,
+        'chat_title': extract_chat_title(chat),
+        'chat_type': chat.type,
+    }
+
 def safe_send(send_func, *args, max_retries=3, **kwargs):
     """Wrap bot.send_message/reply_to with retry on connection errors."""
     delay = 1
@@ -97,7 +116,8 @@ def handle_text_message(message: types.Message):
             message.from_user.id,
             message.chat.id,
             message.text,
-            'text'
+            'text',
+            **message_context(message)
         )
 
         # Extract links from text
@@ -144,7 +164,8 @@ def handle_photo_message(message: types.Message):
             message.from_user.id,
             message.chat.id,
             caption,
-            'photo'
+            'photo',
+            **message_context(message)
         )
 
         # Save photo info
@@ -179,7 +200,17 @@ def handle_photo_message(message: types.Message):
     except Exception as e:
         logger.error(f'Error handling photo message: {e}')
 
-@bot.message_handler(content_types=['video', 'document', 'voice'])
+MEDIA_TYPE_MAP = {
+    'video': lambda m: m.video,
+    'document': lambda m: m.document,
+    'voice': lambda m: m.voice,
+    'audio': lambda m: m.audio,
+    'video_note': lambda m: m.video_note,
+    'animation': lambda m: m.animation,
+    'sticker': lambda m: m.sticker,
+}
+
+@bot.message_handler(content_types=list(MEDIA_TYPE_MAP.keys()))
 def handle_media_message(message: types.Message):
     try:
         if message.from_user and message.from_user.is_bot:
@@ -187,22 +218,18 @@ def handle_media_message(message: types.Message):
 
         insert_or_update_user(message.from_user)
 
+        # Detect which media type is present
         message_type = None
         media = None
-        file_size = None
+        for mtype, getter in MEDIA_TYPE_MAP.items():
+            m = getter(message)
+            if m:
+                message_type = mtype
+                media = m
+                break
 
-        if message.video:
-            message_type = 'video'
-            media = message.video
-            file_size = message.video.file_size
-        elif message.document:
-            message_type = 'document'
-            media = message.document
-            file_size = message.document.file_size
-        elif message.voice:
-            message_type = 'voice'
-            media = message.voice
-            file_size = message.voice.file_size
+        if not media:
+            return
 
         caption = message.caption or ''
         insert_message(
@@ -210,18 +237,20 @@ def handle_media_message(message: types.Message):
             message.from_user.id,
             message.chat.id,
             caption,
-            message_type
+            message_type,
+            **message_context(message)
         )
 
-        if media:
-            insert_media(
-                message.message_id,
-                message_type,
-                media.file_id,
-                media.file_unique_id,
-                file_size,
-                media.mime_type if hasattr(media, 'mime_type') else None
-            )
+        insert_media(
+            message.message_id,
+            message_type,
+            getattr(media, 'file_id', None),
+            getattr(media, 'file_unique_id', None),
+            file_size=getattr(media, 'file_size', None),
+            mime_type=getattr(media, 'mime_type', None),
+            file_name=getattr(media, 'file_name', None),
+            duration=getattr(media, 'duration', None),
+        )
 
         # Check spelling in caption
         if caption:
@@ -243,7 +272,49 @@ def handle_media_message(message: types.Message):
         logger.debug(f'{message_type} message processed: user={message.from_user.id}, message_id={message.message_id}')
 
     except Exception as e:
-        logger.error(f'Error handling media message: {e}')
+        logger.exception(f'Error handling media message: {e}')
+
+@bot.message_handler(content_types=['contact', 'location', 'venue', 'poll', 'dice'])
+def handle_special_message(message: types.Message):
+    """Handle contact, location, venue, poll, dice messages."""
+    try:
+        if message.from_user and message.from_user.is_bot:
+            return
+
+        insert_or_update_user(message.from_user)
+
+        message_type = message.content_type  # 'contact', 'location', etc.
+
+        # Build descriptive text payload
+        text_parts = []
+        if message.contact:
+            c = message.contact
+            text_parts.append(f'Contact: {c.first_name or ""} {c.last_name or ""} {c.phone_number or ""}'.strip())
+        if message.location:
+            loc = message.location
+            text_parts.append(f'Location: lat={loc.latitude}, lon={loc.longitude}')
+        if message.venue:
+            v = message.venue
+            text_parts.append(f'Venue: {v.title} ({v.address})')
+        if message.poll:
+            p = message.poll
+            opts = '; '.join(o.text for o in p.options)
+            text_parts.append(f'Poll: {p.question} [{opts}]')
+        if message.dice:
+            text_parts.append(f'Dice: {message.dice.emoji} = {message.dice.value}')
+
+        insert_message(
+            message.message_id,
+            message.from_user.id,
+            message.chat.id,
+            ' | '.join(text_parts),
+            message_type,
+            **message_context(message)
+        )
+        logger.debug(f'{message_type} message processed: message_id={message.message_id}')
+
+    except Exception as e:
+        logger.exception(f'Error handling special message: {e}')
 
 @bot.message_handler(content_types=[
     'new_chat_members', 'left_chat_member', 'new_chat_title',
@@ -286,7 +357,10 @@ def handle_other_events(message: types.Message):
                 message.chat.id,
                 event_type,
                 message.from_user.id if message.from_user else None,
-                json.dumps(data, ensure_ascii=False)
+                json.dumps(data, ensure_ascii=False),
+                chat_title=extract_chat_title(message.chat),
+                user_username=message.from_user.username if message.from_user else None,
+                user_first_name=message.from_user.first_name if message.from_user else None,
             )
             logger.debug(f'Service event recorded: {event_type}')
 

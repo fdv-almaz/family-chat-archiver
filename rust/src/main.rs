@@ -4,7 +4,7 @@ mod error;
 mod processors;
 
 use teloxide::prelude::*;
-use teloxide::types::{Message as TgMessage, PhotoSize};
+use teloxide::types::{Message as TgMessage, PhotoSize, Chat};
 use log::{error, info, debug};
 use serde_json::json;
 use std::sync::Arc;
@@ -16,7 +16,7 @@ use processors::{check_spelling, format_correction_message, format_chat_message,
 const START_MESSAGE: &str = "<b>👋 Family Chat Archiver</b>\n\n\
 Это бот для архивирования всех сообщений в семейной группе.\n\n\
 <b>Основные возможности:</b>\n\
-✅ Сохранение всех сообщений (текст, фото, видео, документы)\n\
+✅ Сохранение всех сообщений (текст, фото, видео, документы, аудио)\n\
 ✅ Сохранение информации об авторах\n\
 ✅ Проверка орфографии русскоязычных текстов\n\
 ✅ Сохранение ссылок и медиа-контента\n\
@@ -26,6 +26,44 @@ const START_MESSAGE: &str = "<b>👋 Family Chat Archiver</b>\n\n\
 <b>Хранение данных:</b>\n\
 Все данные сохраняются в защищённой MySQL базе данных.\n\n\
 <i>Бот работает в фоновом режиме и не требует команд.</i>";
+
+fn chat_title(chat: &Chat) -> Option<String> {
+    if let Some(t) = chat.title() {
+        return Some(t.to_string());
+    }
+    let first = chat.first_name();
+    let last = chat.last_name();
+    match (first, last) {
+        (Some(f), Some(l)) => Some(format!("{} {}", f, l)),
+        (Some(f), None) => Some(f.to_string()),
+        (None, Some(l)) => Some(l.to_string()),
+        (None, None) => None,
+    }
+}
+
+fn chat_type(chat: &Chat) -> Option<String> {
+    use teloxide::types::ChatKind;
+    Some(match &chat.kind {
+        ChatKind::Public(_) => "public".to_string(),
+        ChatKind::Private(_) => "private".to_string(),
+    })
+}
+
+fn build_db_message(message: &TgMessage, text: &str, message_type: &str) -> DbMessage {
+    let user = message.from.as_ref();
+    DbMessage {
+        message_id: message.id.0 as i64,
+        user_id: user.map(|u| u.id.0 as i64).unwrap_or(0),
+        user_username: user.and_then(|u| u.username.clone()),
+        user_first_name: user.map(|u| u.first_name.clone()),
+        user_last_name: user.and_then(|u| u.last_name.clone()),
+        chat_id: message.chat.id.0,
+        chat_title: chat_title(&message.chat),
+        chat_type: chat_type(&message.chat),
+        text: Some(text.to_string()),
+        message_type: message_type.to_string(),
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -69,7 +107,6 @@ async fn handle_message(
     message: TgMessage,
     db: Arc<DbPool>,
 ) -> ResponseResult<()> {
-    // Skip messages from bots to prevent loops
     if let Some(user) = message.from.as_ref() {
         if user.is_bot {
             return Ok(());
@@ -78,7 +115,7 @@ async fn handle_message(
         let db_user = User {
             user_id: user.id.0 as i64,
             username: user.username.clone(),
-            first_name: user.first_name.clone(),
+            first_name: Some(user.first_name.clone()),
             last_name: user.last_name.clone(),
             is_bot: user.is_bot,
         };
@@ -87,7 +124,6 @@ async fn handle_message(
         }
     }
 
-    // Handle /start and /help commands
     if let Some(text) = message.text() {
         if text == "/start" || text == "/help" {
             let _ = bot
@@ -103,27 +139,66 @@ async fn handle_message(
     } else if let Some(photos) = message.photo() {
         handle_photo_message(&bot, &message, db.as_ref(), photos, message.caption()).await;
     } else if let Some(video) = message.video() {
-        handle_media_message(
-            &bot, &message, db.as_ref(), "video",
-            &video.file.id, &video.file.unique_id, video.file.size as i32,
-            None, message.caption()
-        ).await;
-    } else if let Some(document) = message.document() {
-        let mime = document.mime_type.as_ref().map(|m| m.to_string());
-        handle_media_message(
-            &bot, &message, db.as_ref(), "document",
-            &document.file.id, &document.file.unique_id, document.file.size as i32,
-            mime.as_deref(),
-            message.caption()
-        ).await;
+        save_media(&bot, &message, db.as_ref(), "video",
+            &video.file.id, &video.file.unique_id, video.file.size as i64,
+            None, video.mime_type.as_ref().map(|m| m.to_string()),
+            Some(video.duration as i32),
+            message.caption()).await;
+    } else if let Some(audio) = message.audio() {
+        save_media(&bot, &message, db.as_ref(), "audio",
+            &audio.file.id, &audio.file.unique_id, audio.file.size as i64,
+            audio.file_name.clone(),
+            audio.mime_type.as_ref().map(|m| m.to_string()),
+            Some(audio.duration as i32),
+            message.caption()).await;
     } else if let Some(voice) = message.voice() {
-        let mime = voice.mime_type.as_ref().map(|m| m.to_string());
-        handle_media_message(
-            &bot, &message, db.as_ref(), "voice",
-            &voice.file.id, &voice.file.unique_id, voice.file.size as i32,
-            mime.as_deref(),
-            message.caption()
-        ).await;
+        save_media(&bot, &message, db.as_ref(), "voice",
+            &voice.file.id, &voice.file.unique_id, voice.file.size as i64,
+            None, voice.mime_type.as_ref().map(|m| m.to_string()),
+            Some(voice.duration as i32),
+            message.caption()).await;
+    } else if let Some(video_note) = message.video_note() {
+        save_media(&bot, &message, db.as_ref(), "video_note",
+            &video_note.file.id, &video_note.file.unique_id, video_note.file.size as i64,
+            None, None, Some(video_note.duration as i32),
+            None).await;
+    } else if let Some(animation) = message.animation() {
+        save_media(&bot, &message, db.as_ref(), "animation",
+            &animation.file.id, &animation.file.unique_id, animation.file.size as i64,
+            animation.file_name.clone(),
+            animation.mime_type.as_ref().map(|m| m.to_string()),
+            Some(animation.duration as i32),
+            message.caption()).await;
+    } else if let Some(document) = message.document() {
+        save_media(&bot, &message, db.as_ref(), "document",
+            &document.file.id, &document.file.unique_id, document.file.size as i64,
+            document.file_name.clone(),
+            document.mime_type.as_ref().map(|m| m.to_string()),
+            None,
+            message.caption()).await;
+    } else if let Some(sticker) = message.sticker() {
+        save_media(&bot, &message, db.as_ref(), "sticker",
+            &sticker.file.id, &sticker.file.unique_id, sticker.file.size as i64,
+            None, None, None, None).await;
+    } else if let Some(contact) = message.contact() {
+        let text = format!("Contact: {} {} {}",
+            contact.first_name,
+            contact.last_name.as_deref().unwrap_or(""),
+            contact.phone_number);
+        save_simple_message(db.as_ref(), &message, "contact", &text).await;
+    } else if let Some(location) = message.location() {
+        let text = format!("Location: lat={}, lon={}", location.latitude, location.longitude);
+        save_simple_message(db.as_ref(), &message, "location", &text).await;
+    } else if let Some(venue) = message.venue() {
+        let text = format!("Venue: {} ({})", venue.title, venue.address);
+        save_simple_message(db.as_ref(), &message, "venue", &text).await;
+    } else if let Some(poll) = message.poll() {
+        let opts: Vec<String> = poll.options.iter().map(|o| o.text.clone()).collect();
+        let text = format!("Poll: {} [{}]", poll.question, opts.join("; "));
+        save_simple_message(db.as_ref(), &message, "poll", &text).await;
+    } else if let Some(dice) = message.dice() {
+        let text = format!("Dice: {} = {}", dice.emoji, dice.value);
+        save_simple_message(db.as_ref(), &message, "dice", &text).await;
     } else if !message.new_chat_members().unwrap_or(&[]).is_empty() {
         handle_service_event(db.as_ref(), &message, "user_joined").await;
     } else if message.left_chat_member().is_some() {
@@ -137,19 +212,20 @@ async fn handle_message(
     Ok(())
 }
 
+async fn save_simple_message(db: &DbPool, message: &TgMessage, mtype: &str, text: &str) {
+    let db_message = build_db_message(message, text, mtype);
+    if let Err(e) = db.insert_message(&db_message).await {
+        error!("Failed to save {} message: {}", mtype, e);
+    }
+}
+
 async fn handle_text_message(
     bot: &Bot,
     message: &TgMessage,
     db: &DbPool,
     text: &str,
 ) {
-    let db_message = DbMessage {
-        message_id: message.id.0 as i64,
-        user_id: message.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0),
-        chat_id: message.chat.id.0,
-        text: Some(text.to_string()),
-        message_type: "text".to_string(),
-    };
+    let db_message = build_db_message(message, text, "text");
 
     if let Err(e) = db.insert_message(&db_message).await {
         error!("Failed to save message: {}", e);
@@ -173,14 +249,7 @@ async fn handle_photo_message(
     caption: Option<&str>,
 ) {
     let caption_text = caption.unwrap_or("");
-
-    let db_message = DbMessage {
-        message_id: message.id.0 as i64,
-        user_id: message.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0),
-        chat_id: message.chat.id.0,
-        text: Some(caption_text.to_string()),
-        message_type: "photo".to_string(),
-    };
+    let db_message = build_db_message(message, caption_text, "photo");
 
     if let Err(e) = db.insert_message(&db_message).await {
         error!("Failed to save photo message: {}", e);
@@ -193,7 +262,9 @@ async fn handle_photo_message(
             media_type: "photo".to_string(),
             file_id: photo.file.id.clone(),
             file_unique_id: photo.file.unique_id.clone(),
-            file_size: Some(photo.file.size as i32),
+            file_name: None,
+            file_size: Some(photo.file.size as i64),
+            duration: None,
             mime_type: None,
         };
         if let Err(e) = db.insert_media(&media).await {
@@ -206,29 +277,24 @@ async fn handle_photo_message(
     }
 }
 
-async fn handle_media_message(
+async fn save_media(
     bot: &Bot,
     message: &TgMessage,
     db: &DbPool,
     media_type: &str,
     file_id: &str,
     file_unique_id: &str,
-    file_size: i32,
-    mime_type: Option<&str>,
+    file_size: i64,
+    file_name: Option<String>,
+    mime_type: Option<String>,
+    duration: Option<i32>,
     caption: Option<&str>,
 ) {
     let caption_text = caption.unwrap_or("");
-
-    let db_message = DbMessage {
-        message_id: message.id.0 as i64,
-        user_id: message.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0),
-        chat_id: message.chat.id.0,
-        text: Some(caption_text.to_string()),
-        message_type: media_type.to_string(),
-    };
+    let db_message = build_db_message(message, caption_text, media_type);
 
     if let Err(e) = db.insert_message(&db_message).await {
-        error!("Failed to save media message: {}", e);
+        error!("Failed to save {} message: {}", media_type, e);
         return;
     }
 
@@ -237,8 +303,10 @@ async fn handle_media_message(
         media_type: media_type.to_string(),
         file_id: file_id.to_string(),
         file_unique_id: file_unique_id.to_string(),
+        file_name,
         file_size: Some(file_size),
-        mime_type: mime_type.map(|s| s.to_string()),
+        duration,
+        mime_type,
     };
     if let Err(e) = db.insert_media(&media).await {
         error!("Failed to save media: {}", e);
@@ -279,14 +347,27 @@ async fn process_spelling(bot: &Bot, message: &TgMessage, db: &DbPool, text: &st
 }
 
 async fn handle_service_event(db: &DbPool, message: &TgMessage, event_type: &str) {
-    let user_id = message.from.as_ref().map(|u| u.id.0 as i64);
+    let user = message.from.as_ref();
+    let user_id = user.map(|u| u.id.0 as i64);
+    let username = user.and_then(|u| u.username.as_deref());
+    let first_name = user.map(|u| u.first_name.as_str());
 
     let data = json!({
         "message_id": message.id.0,
         "event": event_type
     });
 
-    if let Err(e) = db.insert_service_event(message.chat.id.0, event_type, user_id, data).await {
+    let title = chat_title(&message.chat);
+
+    if let Err(e) = db.insert_service_event(
+        message.chat.id.0,
+        title.as_deref(),
+        event_type,
+        user_id,
+        username,
+        first_name,
+        data,
+    ).await {
         error!("Failed to save service event: {}", e);
     }
 
