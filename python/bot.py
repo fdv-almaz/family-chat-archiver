@@ -3,6 +3,7 @@ import signal
 import sys
 import json
 import re
+import time
 from telebot import TeleBot, types
 
 import config
@@ -261,9 +262,37 @@ def main():
         create_tables()
         logger.info('Database initialized')
 
-        # Start polling
+        # Start polling with reconnection logic
         logger.info('Bot started, polling for messages...')
-        bot.infinity_polling(timeout=30, long_polling_timeout=30)
+        retry_count = 0
+        max_retries = 5
+        retry_delay = 5
+
+        while running:
+            try:
+                bot.infinity_polling(timeout=30, long_polling_timeout=30)
+            except KeyboardInterrupt:
+                logger.info('Bot stopped by user')
+                break
+            except (ConnectionError, TimeoutError) as e:
+                retry_count += 1
+                if retry_count <= max_retries:
+                    logger.warning(f'Connection error (attempt {retry_count}/{max_retries}): {e}')
+                    logger.info(f'Reconnecting in {retry_delay} seconds...')
+                    time.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 60)
+                else:
+                    logger.error(f'Max retries ({max_retries}) exceeded. Stopping bot.')
+                    raise
+            except Exception as e:
+                logger.error(f'Unexpected error: {e}')
+                retry_count += 1
+                if retry_count <= max_retries:
+                    logger.info(f'Retrying in {retry_delay} seconds...')
+                    time.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 60)
+                else:
+                    raise
 
     except KeyboardInterrupt:
         logger.info('Bot stopped by user')

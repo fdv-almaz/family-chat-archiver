@@ -58,11 +58,35 @@ async fn main() -> Result<()> {
             }
         });
 
-    Dispatcher::builder(bot, handler)
-        .error_handler(LoggingErrorHandler::with_custom_text("An error from the dispatcher"))
-        .build()
-        .dispatch()
-        .await;
+    let mut retry_count = 0;
+    const MAX_RETRIES: u32 = 5;
+    let mut retry_delay = std::time::Duration::from_secs(5);
+
+    loop {
+        match Dispatcher::builder(bot.clone(), handler.clone())
+            .error_handler(LoggingErrorHandler::with_custom_text("An error from the dispatcher"))
+            .build()
+            .dispatch()
+            .await
+        {
+            Ok(()) => {
+                info!("Dispatcher completed successfully");
+                break;
+            }
+            Err(e) => {
+                retry_count += 1;
+                if retry_count <= MAX_RETRIES {
+                    error!("Dispatcher error (attempt {}/{}): {}", retry_count, MAX_RETRIES, e);
+                    info!("Reconnecting in {:?}...", retry_delay);
+                    tokio::time::sleep(retry_delay).await;
+                    retry_delay = std::cmp::min(retry_delay.mul_f32(2.0), std::time::Duration::from_secs(60));
+                } else {
+                    error!("Max retries ({}) exceeded. Stopping bot.", MAX_RETRIES);
+                    return Err(error::Error::Api(format!("Dispatcher failed after {} retries: {}", MAX_RETRIES, e)));
+                }
+            }
+        }
+    }
 
     Ok(())
 }
