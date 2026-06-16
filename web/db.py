@@ -158,16 +158,20 @@ def list_chats():
         SELECT chat_id,
                COALESCE(
                    NULLIF(MAX(chat_title), ''),
-                   MAX(CASE WHEN chat_type = 'private' THEN
-                       TRIM(CONCAT(COALESCE(user_first_name, ''), ' ', COALESCE(user_last_name, '')))
-                   END),
-                   CONCAT('Чат #', chat_id)
+                   NULLIF(TRIM(MAX(CASE WHEN chat_type = 'private' THEN
+                       CONCAT(COALESCE(user_first_name, ''), ' ', COALESCE(user_last_name, ''))
+                   END)), ''),
+                   CASE
+                       WHEN MAX(chat_type) = 'private' THEN CONCAT('Личный чат #', chat_id)
+                       WHEN MAX(chat_type) = 'group' THEN CONCAT('Группа #', chat_id)
+                       WHEN MAX(chat_type) IN ('supergroup', 'channel') THEN CONCAT(MAX(chat_type), ' #', chat_id)
+                       ELSE CONCAT('Чат #', chat_id)
+                   END
                ) AS chat_title,
                MAX(chat_type) AS chat_type,
                COUNT(*) AS message_count
         FROM messages
         GROUP BY chat_id
-        HAVING chat_title IS NOT NULL AND chat_title != ''
         ORDER BY message_count DESC
     """)
 
