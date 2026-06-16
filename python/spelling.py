@@ -54,6 +54,10 @@ def check_spelling(text: str, max_retries: int = 3) -> Optional[List[Dict]]:
             logger.debug(f'YandexSpeller HTTP error: {e} (attempt {attempt + 1}/{max_retries})')
             if attempt < max_retries - 1:
                 time.sleep(1)
+        except requests.exceptions.ConnectionError as e:
+            logger.debug(f'YandexSpeller connection error: {e} (attempt {attempt + 1}/{max_retries})')
+            if attempt < max_retries - 1:
+                time.sleep(2 ** attempt)
         except requests.exceptions.RequestException as e:
             logger.debug(f'YandexSpeller request error: {e} (attempt {attempt + 1}/{max_retries})')
             if attempt < max_retries - 1:

@@ -3,7 +3,9 @@ import signal
 import sys
 import json
 import re
+import time
 from telebot import TeleBot, types
+from telebot.apihelper import ApiException
 
 import config
 from db import DBPool, create_tables, insert_or_update_user, insert_message, insert_media, insert_link, insert_spelling_correction, insert_service_event
@@ -13,6 +15,33 @@ logger = logging.getLogger(__name__)
 
 bot = TeleBot(config.TELEGRAM_BOT_TOKEN, parse_mode='HTML')
 running = True
+
+def safe_send(send_func, *args, max_retries=3, **kwargs):
+    """Wrap bot.send_message/reply_to with retry on connection errors."""
+    delay = 1
+    for attempt in range(max_retries):
+        try:
+            return send_func(*args, **kwargs)
+        except (ConnectionError, TimeoutError) as e:
+            logger.warning(f'Send failed (attempt {attempt + 1}/{max_retries}): {e}')
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+                delay = min(delay * 2, 10)
+        except ApiException as e:
+            logger.error(f'Telegram API error: {e}')
+            return None
+        except Exception as e:
+            error_str = str(e)
+            if 'Connection aborted' in error_str or 'RemoteDisconnected' in error_str or 'ConnectionError' in error_str:
+                logger.warning(f'Connection issue (attempt {attempt + 1}/{max_retries}): {e}')
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                    delay = min(delay * 2, 10)
+            else:
+                logger.error(f'Unexpected error in send: {e}')
+                return None
+    logger.error(f'Failed to send after {max_retries} attempts')
+    return None
 
 START_MESSAGE = """
 <b>👋 Family Chat Archiver</b>
@@ -38,7 +67,7 @@ START_MESSAGE = """
 @bot.message_handler(commands=['start', 'help'])
 def handle_start(message: types.Message):
     try:
-        bot.reply_to(message, START_MESSAGE)
+        safe_send(bot.reply_to, message, START_MESSAGE)
         logger.debug(f'Start command handled for user {message.from_user.id}')
     except Exception as e:
         logger.error(f'Error handling start command: {e}')
@@ -94,7 +123,7 @@ def handle_text_message(message: types.Message):
             # Send correction to chat (visible to all)
             correction_message = format_chat_message(message.text, corrected_text, processed_errors)
             if correction_message:
-                bot.send_message(message.chat.id, correction_message)
+                safe_send(bot.send_message, message.chat.id, correction_message)
 
         logger.debug(f'Text message processed: user={message.from_user.id}, message_id={message.message_id}')
 
@@ -143,7 +172,7 @@ def handle_photo_message(message: types.Message):
                 )
                 correction_message = format_chat_message(caption, corrected_text, processed_errors)
                 if correction_message:
-                    bot.send_message(message.chat.id, correction_message)
+                    safe_send(bot.send_message, message.chat.id, correction_message)
 
         logger.debug(f'Photo message processed: user={message.from_user.id}, message_id={message.message_id}')
 
@@ -209,7 +238,7 @@ def handle_media_message(message: types.Message):
                 )
                 correction_message = format_chat_message(caption, corrected_text, processed_errors)
                 if correction_message:
-                    bot.send_message(message.chat.id, correction_message)
+                    safe_send(bot.send_message, message.chat.id, correction_message)
 
         logger.debug(f'{message_type} message processed: user={message.from_user.id}, message_id={message.message_id}')
 
