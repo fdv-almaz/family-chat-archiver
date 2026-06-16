@@ -13,9 +13,18 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Family Chat Archiver — Web")
+app = FastAPI(title="Family Chat Archiver — Web", version=config.VERSION)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# Make VERSION available to all templates
+@app.middleware("http")
+async def add_version_to_request(request, call_next):
+    request.state.version = config.VERSION
+    return await call_next(request)
+
+
+templates.env.globals['VERSION'] = config.VERSION
 
 DEFAULT_PAGE_SIZE = 100
 ALLOWED_PAGE_SIZES = list(range(25, 1001, 25))  # 25, 50, 75, ..., 1000

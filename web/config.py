@@ -16,3 +16,11 @@ WEB_PORT = int(os.getenv('WEB_PORT', '8000'))
 
 MEDIA_CACHE_DIR = os.getenv('MEDIA_CACHE_DIR', 'media_cache')
 os.makedirs(MEDIA_CACHE_DIR, exist_ok=True)
+
+# Project version (read from VERSION at repo root)
+_VERSION_FILE = os.path.join(os.path.dirname(__file__), '..', 'VERSION')
+try:
+    with open(_VERSION_FILE) as _vf:
+        VERSION = _vf.read().strip()
+except OSError:
+    VERSION = 'unknown'

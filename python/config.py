@@ -5,6 +5,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Read version from VERSION file at repo root (one level up from python/)
+_VERSION_FILE = os.path.join(os.path.dirname(__file__), '..', 'VERSION')
+try:
+    with open(_VERSION_FILE) as _vf:
+        VERSION = _vf.read().strip()
+except OSError:
+    VERSION = 'unknown'
+
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 MYSQL_HOST = os.getenv('MYSQL_HOST', 'localhost')
 MYSQL_PORT = int(os.getenv('MYSQL_PORT', '3306'))
@@ -65,5 +73,6 @@ logger = logging.getLogger(__name__)
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError('TELEGRAM_BOT_TOKEN is required')
 
+logger.info(f'Family Chat Archiver v{VERSION}')
 logger.info(f'Logging to {LOG_FILE} (retention: {LOG_RETENTION_DAYS} days, console: {LOG_TO_CONSOLE})')
 logger.info(f'Config loaded: DB={MYSQL_USER}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}')

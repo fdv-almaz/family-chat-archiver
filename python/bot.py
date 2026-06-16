@@ -101,8 +101,8 @@ def safe_send(send_func, *args, max_retries=3, **kwargs):
     logger.error(f'Failed to send after {max_retries} attempts')
     return None
 
-START_MESSAGE = """
-<b>👋 Family Chat Archiver</b>
+START_MESSAGE = f"""
+<b>👋 Family Chat Archiver v{config.VERSION}</b>
 
 Это бот для архивирования всех сообщений в семейной группе.
 

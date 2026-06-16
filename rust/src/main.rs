@@ -14,19 +14,21 @@ use config::{Config, SpellingVisibility};
 use db::{DbPool, User, DbMessage, Media, SpellingCorrection};
 use processors::{check_spelling, format_correction_message, format_chat_message, extract_urls};
 
-const START_MESSAGE: &str = "<b>👋 Family Chat Archiver</b>\n\n\
-Это бот для архивирования всех сообщений в семейной группе.\n\n\
-<b>Основные возможности:</b>\n\
-✅ Сохранение всех сообщений (текст, фото, видео, документы, аудио)\n\
-✅ Сохранение информации об авторах\n\
-✅ Проверка орфографии русскоязычных текстов\n\
-✅ Сохранение ссылок и медиа-контента\n\
-✅ Запись служебных событий (вход/выход участников)\n\n\
-<b>Как это работает:</b>\n\
-Бот автоматически архивирует все сообщения в группе без участия пользователя. Для исправления орфографии используется YandexSpeller API.\n\n\
-<b>Хранение данных:</b>\n\
-Все данные сохраняются в защищённой MySQL базе данных.\n\n\
-<i>Бот работает в фоновом режиме и не требует команд.</i>";
+const START_MESSAGE: &str = concat!(
+    "<b>👋 Family Chat Archiver v", env!("CARGO_PKG_VERSION"), "</b>\n\n",
+    "Это бот для архивирования всех сообщений в семейной группе.\n\n",
+    "<b>Основные возможности:</b>\n",
+    "✅ Сохранение всех сообщений (текст, фото, видео, документы, аудио)\n",
+    "✅ Сохранение информации об авторах\n",
+    "✅ Проверка орфографии русскоязычных текстов\n",
+    "✅ Сохранение ссылок и медиа-контента\n",
+    "✅ Запись служебных событий (вход/выход участников)\n\n",
+    "<b>Как это работает:</b>\n",
+    "Бот автоматически архивирует все сообщения в группе без участия пользователя. Для исправления орфографии используется YandexSpeller API.\n\n",
+    "<b>Хранение данных:</b>\n",
+    "Все данные сохраняются в защищённой MySQL базе данных.\n\n",
+    "<i>Бот работает в фоновом режиме и не требует команд.</i>"
+);
 
 fn chat_title(chat: &Chat) -> Option<String> {
     if let Some(t) = chat.title() {
@@ -94,6 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Bridge log crate (used by mysql, teloxide deps) into tracing
     tracing_log::LogTracer::init().ok();
 
+    info!("Family Chat Archiver v{}", env!("CARGO_PKG_VERSION"));
     info!("Logging to {}/{} (console: {})", config.log_dir, config.log_file_prefix, config.log_to_console);
 
     let db_pool = DbPool::new(&config).map_err(|e| format!("DB error: {}", e))?;
