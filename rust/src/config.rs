@@ -20,6 +20,8 @@ pub struct Config {
     pub log_dir: String,
     pub log_file_prefix: String,
     pub log_to_console: bool,
+    pub media_storage_dir: String,
+    pub media_max_download_size: u64,
 }
 
 impl Config {
@@ -59,6 +61,11 @@ impl Config {
             log_dir: env::var("LOG_DIR").unwrap_or_else(|_| "logs".to_string()),
             log_file_prefix: env::var("LOG_FILE_PREFIX").unwrap_or_else(|_| "bot.log".to_string()),
             log_to_console,
+            media_storage_dir: env::var("MEDIA_STORAGE_DIR").unwrap_or_else(|_| "storage".to_string()),
+            media_max_download_size: env::var("MEDIA_MAX_DOWNLOAD_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(20 * 1024 * 1024),
         })
     }
 }

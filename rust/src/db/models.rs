@@ -33,6 +33,7 @@ pub struct Media {
     pub file_size: Option<i64>,
     pub duration: Option<i32>,
     pub mime_type: Option<String>,
+    pub local_path: Option<String>,
 }
 
 pub struct SpellingCorrection {
@@ -85,12 +86,12 @@ impl DbPool {
         Ok(())
     }
 
-    pub async fn insert_media(&self, media: &Media) -> Result<()> {
+    pub async fn insert_media(&self, media: &Media) -> Result<i64> {
         let mut conn = self.get_connection()?;
 
         let query = "INSERT INTO media
-                    (message_id, type, file_id, file_unique_id, file_name, file_size, duration, mime_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                    (message_id, type, file_id, file_unique_id, file_name, file_size, duration, mime_type, local_path)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         conn.exec_drop(query, (
             &media.message_id,
@@ -101,12 +102,23 @@ impl DbPool {
             &media.file_size,
             &media.duration,
             &media.mime_type,
+            &media.local_path,
         ))
         .map_err(|e| {
             error!("Failed to insert media for message {}: {}", media.message_id, e);
             Error::Database(format!("Failed to insert media: {}", e))
         })?;
 
+        Ok(conn.last_insert_id() as i64)
+    }
+
+    pub async fn update_media_local_path(&self, media_id: i64, local_path: &str) -> Result<()> {
+        let mut conn = self.get_connection()?;
+        conn.exec_drop(
+            "UPDATE media SET local_path = ? WHERE media_id = ?",
+            (local_path, media_id),
+        )
+        .map_err(|e| Error::Database(format!("Failed to update local_path: {}", e)))?;
         Ok(())
     }
 

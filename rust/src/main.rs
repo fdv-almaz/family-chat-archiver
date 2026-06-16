@@ -1,6 +1,7 @@
 mod config;
 mod db;
 mod error;
+mod media_storage;
 mod processors;
 
 use teloxide::prelude::*;
@@ -98,6 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_pool = DbPool::new(&config).map_err(|e| format!("DB error: {}", e))?;
 
     db_pool.create_tables().await.map_err(|e| format!("DB init error: {}", e))?;
+    std::fs::create_dir_all(&config.media_storage_dir).ok();
 
     let db_pool = Arc::new(db_pool);
     let cfg = Arc::new(config.clone());
@@ -241,6 +243,30 @@ async fn handle_message(
     Ok(())
 }
 
+async fn save_media_and_download(bot: &Bot, db: &DbPool, cfg: &Config, media: Media) {
+    let file_id = media.file_id.clone();
+    let file_unique_id = media.file_unique_id.clone();
+    let file_size = media.file_size;
+
+    let media_id = match db.insert_media(&media).await {
+        Ok(id) => id,
+        Err(e) => {
+            error!("Failed to save media: {}", e);
+            return;
+        }
+    };
+
+    if let Some(path) = media_storage::download_and_save(
+        bot, &cfg.media_storage_dir,
+        &file_id, &file_unique_id,
+        file_size, cfg.media_max_download_size,
+    ).await {
+        if let Err(e) = db.update_media_local_path(media_id, &path).await {
+            error!("Failed to update local_path: {}", e);
+        }
+    }
+}
+
 async fn save_simple_message(db: &DbPool, message: &TgMessage, mtype: &str, text: &str) {
     let db_message = build_db_message(message, text, mtype);
     if let Err(e) = db.insert_message(&db_message).await {
@@ -297,10 +323,9 @@ async fn handle_photo_message(
             file_size: Some(photo.file.size as i64),
             duration: None,
             mime_type: None,
+            local_path: None,
         };
-        if let Err(e) = db.insert_media(&media).await {
-            error!("Failed to save media: {}", e);
-        }
+        save_media_and_download(bot, db, cfg, media).await;
     }
 
     if !caption_text.is_empty() {
@@ -339,10 +364,9 @@ async fn save_media(
         file_size: Some(file_size),
         duration,
         mime_type,
+        local_path: None,
     };
-    if let Err(e) = db.insert_media(&media).await {
-        error!("Failed to save media: {}", e);
-    }
+    save_media_and_download(bot, db, cfg, media).await;
 
     if !caption_text.is_empty() {
         process_spelling(bot, message, db, cfg, caption_text).await;

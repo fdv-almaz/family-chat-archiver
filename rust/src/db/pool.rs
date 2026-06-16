@@ -74,6 +74,7 @@ impl DbPool {
                 file_size BIGINT,
                 duration INT,
                 mime_type VARCHAR(100),
+                local_path VARCHAR(500),
                 FOREIGN KEY (message_id) REFERENCES messages(message_id) ON DELETE CASCADE,
                 INDEX idx_message_id (message_id),
                 INDEX idx_type (type)
@@ -128,6 +129,7 @@ impl DbPool {
             "ALTER TABLE media MODIFY COLUMN file_size BIGINT",
             "ALTER TABLE media ADD COLUMN file_name VARCHAR(255)",
             "ALTER TABLE media ADD COLUMN duration INT",
+            "ALTER TABLE media ADD COLUMN local_path VARCHAR(500)",
             "ALTER TABLE service_events ADD COLUMN chat_title VARCHAR(255)",
             "ALTER TABLE service_events ADD COLUMN user_username VARCHAR(32)",
             "ALTER TABLE service_events ADD COLUMN user_first_name VARCHAR(255)",
