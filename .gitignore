@@ -7,7 +7,11 @@ logs/
 *.log
 *.log.*
 
-# Web media cache
+# Bot media storage (downloaded Telegram files)
+python/storage/
+rust/storage/
+
+# Web media cache (fallback when bot didn't download)
 web/media_cache/
 
 # Python

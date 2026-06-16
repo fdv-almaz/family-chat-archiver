@@ -21,6 +21,12 @@ SPELLING_VISIBILITY = os.getenv('SPELLING_VISIBILITY', 'public').lower()
 if SPELLING_VISIBILITY not in ('public', 'private', 'off'):
     SPELLING_VISIBILITY = 'public'
 
+# Where to store downloaded media files (Telegram limit is ~20 MB per download via Bot API)
+MEDIA_STORAGE_DIR = os.getenv('MEDIA_STORAGE_DIR', 'storage')
+os.makedirs(MEDIA_STORAGE_DIR, exist_ok=True)
+# Skip downloading files larger than this (bytes). Telegram Bot API hard limit is 20 MB.
+MEDIA_MAX_DOWNLOAD_SIZE = int(os.getenv('MEDIA_MAX_DOWNLOAD_SIZE', str(20 * 1024 * 1024)))
+
 # File logging config
 LOG_FILE = os.getenv('LOG_FILE', 'logs/bot.log')
 LOG_RETENTION_DAYS = int(os.getenv('LOG_RETENTION_DAYS', '7'))

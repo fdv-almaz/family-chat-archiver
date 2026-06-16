@@ -120,7 +120,11 @@ def create_tables():
             cursor.execute("ALTER TABLE media MODIFY COLUMN file_size BIGINT")
         except Error:
             pass
-        for col_def in [("file_name", "VARCHAR(255)"), ("duration", "INT")]:
+        for col_def in [
+            ("file_name", "VARCHAR(255)"),
+            ("duration", "INT"),
+            ("local_path", "VARCHAR(500)"),
+        ]:
             try:
                 cursor.execute(f"ALTER TABLE media ADD COLUMN {col_def[0]} {col_def[1]}")
                 logger.info(f'Added column {col_def[0]} to media table')
@@ -236,7 +240,8 @@ def insert_message(message_id, user_id, chat_id, text, message_type,
         conn.close()
 
 def insert_media(message_id, media_type, file_id, file_unique_id,
-                 file_size=None, mime_type=None, file_name=None, duration=None):
+                 file_size=None, mime_type=None, file_name=None, duration=None,
+                 local_path=None):
     db = DBPool()
     conn = db.get_connection()
     cursor = conn.cursor()
@@ -244,17 +249,34 @@ def insert_media(message_id, media_type, file_id, file_unique_id,
     try:
         cursor.execute("""
             INSERT INTO media
-            (message_id, type, file_id, file_unique_id, file_name, file_size, duration, mime_type)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            (message_id, type, file_id, file_unique_id, file_name, file_size, duration, mime_type, local_path)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (message_id, media_type, file_id, file_unique_id,
-              file_name, file_size, duration, mime_type))
+              file_name, file_size, duration, mime_type, local_path))
         conn.commit()
+        media_id = cursor.lastrowid
+        return media_id
     except Error as e:
         logger.error(f'Failed to insert media for message {message_id}: {e}')
         raise
     finally:
         cursor.close()
         conn.close()
+
+def update_media_local_path(media_id, local_path):
+    db = DBPool()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE media SET local_path = %s WHERE media_id = %s",
+                       (local_path, media_id))
+        conn.commit()
+    except Error as e:
+        logger.error(f'Failed to update local_path for media {media_id}: {e}')
+    finally:
+        cursor.close()
+        conn.close()
+
 
 def insert_link(message_id, url):
     db = DBPool()

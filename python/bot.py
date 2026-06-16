@@ -8,13 +8,29 @@ from telebot import TeleBot, types
 from telebot.apihelper import ApiException
 
 import config
-from db import DBPool, create_tables, insert_or_update_user, insert_message, insert_media, insert_link, insert_spelling_correction, insert_service_event
+from db import DBPool, create_tables, insert_or_update_user, insert_message, insert_media, insert_link, insert_spelling_correction, insert_service_event, update_media_local_path
 from spelling import check_spelling, format_correction_message, format_chat_message
+from media_storage import download_and_save
 
 logger = logging.getLogger(__name__)
 
 bot = TeleBot(config.TELEGRAM_BOT_TOKEN, parse_mode='HTML')
 running = True
+
+def save_media_with_file(media_kwargs: dict, file_id: str, file_unique_id: str,
+                          file_size=None, suggested_ext: str = ""):
+    """Insert media row, then download file from Telegram, then update local_path."""
+    media_id = insert_media(**media_kwargs)
+    if not media_id or not file_id or not file_unique_id:
+        return
+    try:
+        local_path = download_and_save(bot, file_id, file_unique_id,
+                                        file_size=file_size, suggested_ext=suggested_ext)
+        if local_path:
+            update_media_local_path(media_id, local_path)
+    except Exception as e:
+        logger.warning(f'Media download failed (media_id={media_id}): {e}')
+
 
 def extract_chat_title(chat) -> str:
     """Get chat title for groups/channels or 'first_name last_name' for private chats."""
@@ -189,14 +205,19 @@ def handle_photo_message(message: types.Message):
             **message_context(message)
         )
 
-        # Save photo info
+        # Save photo info (largest variant) and download file
         photo = message.photo[-1]
-        insert_media(
-            message.message_id,
-            'photo',
-            photo.file_id,
-            photo.file_unique_id,
-            photo.file_size
+        save_media_with_file(
+            dict(
+                message_id=message.message_id,
+                media_type='photo',
+                file_id=photo.file_id,
+                file_unique_id=photo.file_unique_id,
+                file_size=photo.file_size,
+            ),
+            photo.file_id, photo.file_unique_id,
+            file_size=photo.file_size,
+            suggested_ext='.jpg',
         )
 
         # Check spelling in caption if present
@@ -260,15 +281,22 @@ def handle_media_message(message: types.Message):
             **message_context(message)
         )
 
-        insert_media(
-            message.message_id,
-            message_type,
-            getattr(media, 'file_id', None),
-            getattr(media, 'file_unique_id', None),
-            file_size=getattr(media, 'file_size', None),
-            mime_type=getattr(media, 'mime_type', None),
-            file_name=getattr(media, 'file_name', None),
-            duration=getattr(media, 'duration', None),
+        media_file_id = getattr(media, 'file_id', None)
+        media_file_unique_id = getattr(media, 'file_unique_id', None)
+        media_file_size = getattr(media, 'file_size', None)
+        save_media_with_file(
+            dict(
+                message_id=message.message_id,
+                media_type=message_type,
+                file_id=media_file_id,
+                file_unique_id=media_file_unique_id,
+                file_size=media_file_size,
+                mime_type=getattr(media, 'mime_type', None),
+                file_name=getattr(media, 'file_name', None),
+                duration=getattr(media, 'duration', None),
+            ),
+            media_file_id, media_file_unique_id,
+            file_size=media_file_size,
         )
 
         # Check spelling in caption

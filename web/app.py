@@ -140,25 +140,31 @@ def corrections(request: Request, page: int = Query(1, ge=1)):
 
 @app.get("/media/{media_id}")
 async def media_file(media_id: int):
-    """Stream media file from Telegram (or local cache)."""
+    """Serve media. Priority: bot's local_path → web cache → fetch from Telegram."""
+    import os
     media = db.get_media_by_id(media_id)
     if not media:
         raise HTTPException(404, "Media not found")
 
+    # 1. Bot-saved local file (preferred, no Telegram needed)
+    local_path = media.get("local_path")
+    if local_path and os.path.exists(local_path):
+        mime = media.get("mime_type") or tg.mime_from_ext(local_path)
+        return FileResponse(local_path, media_type=mime)
+
+    # 2. Fallback: download from Telegram (and cache in web/media_cache)
     file_id = media.get("file_id")
     file_unique_id = media.get("file_unique_id")
     if not file_id or not file_unique_id:
-        raise HTTPException(404, "No file_id stored")
+        raise HTTPException(404, "No file stored or referenced")
 
-    # Use mime_type stored or guess from filename
     suggested_ext = ""
     if media.get("file_name"):
-        import os
         _, suggested_ext = os.path.splitext(media["file_name"])
 
     path = await tg.fetch_media(file_id, file_unique_id, suggested_ext)
     if not path:
-        raise HTTPException(502, "Failed to fetch media from Telegram")
+        raise HTTPException(502, "Failed to fetch media from Telegram (file may have expired)")
 
     mime = media.get("mime_type") or tg.mime_from_ext(path)
     return FileResponse(path, media_type=mime)

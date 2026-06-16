@@ -34,16 +34,18 @@ CREATE TABLE IF NOT EXISTS messages (
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- Медиа-файлы (photo, video, audio, voice, video_note, animation, document, sticker)
+-- Сами байты файлов хранятся на диске (см. local_path); в БД только метаданные.
 CREATE TABLE IF NOT EXISTS media (
     media_id INT AUTO_INCREMENT PRIMARY KEY,
     message_id BIGINT,
     type VARCHAR(20),
-    file_id VARCHAR(255),
-    file_unique_id VARCHAR(255),
+    file_id VARCHAR(255),                 -- Telegram token (~24h TTL для download)
+    file_unique_id VARCHAR(255),          -- стабильный идентификатор
     file_name VARCHAR(255),
     file_size BIGINT,
     duration INT,
     mime_type VARCHAR(100),
+    local_path VARCHAR(500),              -- путь к скачанному файлу в MEDIA_STORAGE_DIR
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (message_id) REFERENCES messages(message_id) ON DELETE CASCADE,
     INDEX idx_message_id (message_id),
