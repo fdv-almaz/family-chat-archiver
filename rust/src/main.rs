@@ -21,6 +21,20 @@ pub enum State {
     Start,
 }
 
+const START_MESSAGE: &str = "<b>👋 Family Chat Archiver</b>\n\n\
+Это бот для архивирования всех сообщений в семейной группе.\n\n\
+<b>Основные возможности:</b>\n\
+✅ Сохранение всех сообщений (текст, фото, видео, документы)\n\
+✅ Сохранение информации об авторах\n\
+✅ Проверка орфографии русскоязычных текстов\n\
+✅ Сохранение ссылок и медиа-контента\n\
+✅ Запись служебных событий (вход/выход участников)\n\n\
+<b>Как это работает:</b>\n\
+Бот автоматически архивирует все сообщения в группе без участия пользователя. Для исправления орфографии используется YandexSpeller API.\n\n\
+<b>Хранение данных:</b>\n\
+Все данные сохраняются в защищённой MySQL базе данных.\n\n\
+<i>Бот работает в фоновом режиме и не требует команд.</i>";
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
@@ -69,6 +83,18 @@ async fn handle_message(
         };
         if let Err(e) = db.insert_or_update_user(&db_user).await {
             error!("Failed to save user: {}", e);
+        }
+    }
+
+    // Handle commands
+    if let Some(text) = message.text() {
+        if text == "/start" || text == "/help" {
+            let _ = bot
+                .send_message(message.chat.id, START_MESSAGE)
+                .reply_to_message_id(message.id)
+                .await;
+            debug!("Start command handled for user {:?}", message.from.as_ref().map(|u| u.id));
+            return Ok(());
         }
     }
 

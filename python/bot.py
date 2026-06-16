@@ -14,6 +14,35 @@ logger = logging.getLogger(__name__)
 bot = TeleBot(config.TELEGRAM_BOT_TOKEN, parse_mode='HTML')
 running = True
 
+START_MESSAGE = """
+<b>👋 Family Chat Archiver</b>
+
+Это бот для архивирования всех сообщений в семейной группе.
+
+<b>Основные возможности:</b>
+✅ Сохранение всех сообщений (текст, фото, видео, документы)
+✅ Сохранение информации об авторах
+✅ Проверка орфографии русскоязычных текстов
+✅ Сохранение ссылок и медиа-контента
+✅ Запись служебных событий (вход/выход участников)
+
+<b>Как это работает:</b>
+Бот автоматически архивирует все сообщения в группе без участия пользователя. Для исправления орфографии используется YandexSpeller API.
+
+<b>Хранение данных:</b>
+Все данные сохраняются в защищённой MySQL базе данных.
+
+<i>Бот работает в фоновом режиме и не требует команд.</i>
+"""
+
+@bot.message_handler(commands=['start', 'help'])
+def handle_start(message: types.Message):
+    try:
+        bot.reply_to(message, START_MESSAGE)
+        logger.debug(f'Start command handled for user {message.from_user.id}')
+    except Exception as e:
+        logger.error(f'Error handling start command: {e}')
+
 def signal_handler(signum, frame):
     global running
     logger.info('Graceful shutdown initiated')
