@@ -1,9 +1,11 @@
 use reqwest::Client;
 use serde_json::{json, Value};
-use log::{warn, error};
-use crate::error::{Error, Result};
+use log::debug;
+use crate::error::Result;
 
-const YANDEX_SPELLER_API: &str = "https://speller.yandex.net/services/spellchecker.json/checkTexts";
+const YANDEX_SPELLER_API: &str = "https://speller.yandex.net/services/spellservice.json/checkText";
+const SPELLER_OPTIONS: u32 = 1 + 2 + 4; // ignore digits, URLs, find repeat words
+const SPELLER_LANG: &str = "ru,en";
 
 #[derive(Debug, Clone)]
 pub struct SpellingError {
@@ -30,12 +32,18 @@ pub async fn check_spelling(text: &str, max_retries: u32) -> Result<Option<Vec<S
     }
 
     let client = Client::new();
+    let options_str = SPELLER_OPTIONS.to_string();
+    let form_data = [
+        ("text", text),
+        ("options", options_str.as_str()),
+        ("lang", SPELLER_LANG),
+    ];
 
     for attempt in 0..max_retries {
         match client
             .post(YANDEX_SPELLER_API)
-            .query(&[("text", text)])
-            .timeout(std::time::Duration::from_secs(5))
+            .form(&form_data)
+            .timeout(std::time::Duration::from_secs(10))
             .send()
             .await
         {
@@ -45,14 +53,14 @@ pub async fn check_spelling(text: &str, max_retries: u32) -> Result<Option<Vec<S
                     return Ok(None);
                 }
 
-                match response.json::<Vec<Vec<Value>>>().await {
+                match response.json::<Vec<Value>>().await {
                     Ok(results) => {
-                        if results.is_empty() || results[0].is_empty() {
+                        if results.is_empty() {
                             return Ok(None);
                         }
 
                         let mut errors = Vec::new();
-                        for error in &results[0] {
+                        for error in &results {
                             if let (Some(word), Some(pos), Some(suggestions)) = (
                                 error.get("word").and_then(|v| v.as_str()),
                                 error.get("pos").and_then(|v| v.as_i64()),

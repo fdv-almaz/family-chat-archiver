@@ -6,7 +6,12 @@ from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
 
-YANDEX_SPELLER_API = 'https://speller.yandex.net/services/spellchecker.json/checkTexts'
+YANDEX_SPELLER_API = 'https://speller.yandex.net/services/spellservice.json/checkText'
+
+# Speller options (bitmask):
+# 1 - IGNORE_DIGITS, 2 - IGNORE_URLS, 4 - FIND_REPEAT_WORDS, 8 - IGNORE_CAPITALIZATION
+SPELLER_OPTIONS = 1 + 2 + 4  # ignore digits, URLs, find repeat words
+SPELLER_LANG = 'ru,en'
 
 def check_spelling(text: str, max_retries: int = 3) -> Optional[List[Dict]]:
     if not text or len(text.strip()) < 2:
@@ -25,13 +30,18 @@ def check_spelling(text: str, max_retries: int = 3) -> Optional[List[Dict]]:
         try:
             response = requests.post(
                 YANDEX_SPELLER_API,
-                params={'text': text},
-                timeout=5
+                data={
+                    'text': text,
+                    'options': SPELLER_OPTIONS,
+                    'lang': SPELLER_LANG,
+                },
+                timeout=10
             )
             response.raise_for_status()
             errors = response.json()
-            if errors and len(errors) > 0:
-                return errors[0] if isinstance(errors, list) and errors else None
+            # checkText returns a flat array of errors
+            if errors and isinstance(errors, list) and len(errors) > 0:
+                return errors
             return None
         except requests.exceptions.Timeout:
             logger.debug(f'YandexSpeller timeout (attempt {attempt + 1}/{max_retries})')
