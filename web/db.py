@@ -77,7 +77,23 @@ def list_messages(chat_id=None, user_id=None, message_type=None,
         LIMIT %s OFFSET %s
     """
     params.extend([limit, offset])
-    return query(sql, params)
+    messages = query(sql, params)
+
+    # Attach media (one row per message — first media item, usually only one)
+    msg_ids = [m['message_id'] for m in messages]
+    if msg_ids:
+        placeholders = ','.join(['%s'] * len(msg_ids))
+        media_rows = query(
+            f"SELECT * FROM media WHERE message_id IN ({placeholders}) ORDER BY media_id",
+            msg_ids
+        )
+        media_by_msg = {}
+        for m in media_rows:
+            media_by_msg.setdefault(m['message_id'], []).append(m)
+        for msg in messages:
+            msg['media_list'] = media_by_msg.get(msg['message_id'], [])
+
+    return messages
 
 
 def count_messages(chat_id=None, user_id=None, message_type=None,
@@ -137,13 +153,21 @@ def list_users(limit=100):
 
 
 def list_chats():
+    """Returns chats with a friendly display name (uses user name for private chats)."""
     return query("""
         SELECT chat_id,
-               MAX(chat_title) AS chat_title,
+               COALESCE(
+                   NULLIF(MAX(chat_title), ''),
+                   MAX(CASE WHEN chat_type = 'private' THEN
+                       TRIM(CONCAT(COALESCE(user_first_name, ''), ' ', COALESCE(user_last_name, '')))
+                   END),
+                   CONCAT('Чат #', chat_id)
+               ) AS chat_title,
                MAX(chat_type) AS chat_type,
                COUNT(*) AS message_count
         FROM messages
         GROUP BY chat_id
+        HAVING chat_title IS NOT NULL AND chat_title != ''
         ORDER BY message_count DESC
     """)
 
