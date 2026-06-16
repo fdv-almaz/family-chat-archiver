@@ -29,56 +29,60 @@ pub async fn check_spelling(text: &str, max_retries: u32) -> Result<Option<Vec<S
         return Ok(None);
     }
 
-    // Strip trailing punctuation for API request
-    let text_for_api = text.trim_end_matches(|c: char| ".,!?;:—–".contains(c));
-
     let client = Client::new();
 
     for attempt in 0..max_retries {
         match client
             .post(YANDEX_SPELLER_API)
-            .query(&[("text", text_for_api)])
+            .query(&[("text", text)])
             .timeout(std::time::Duration::from_secs(5))
             .send()
             .await
         {
-            Ok(response) => match response.json::<Vec<Vec<Value>>>().await {
-                Ok(results) => {
-                    if results.is_empty() || results[0].is_empty() {
-                        return Ok(None);
-                    }
+            Ok(response) => {
+                if response.status() == 400 {
+                    debug!("YandexSpeller bad request for text: {}... (skipping)", &text[..std::cmp::min(50, text.len())]);
+                    return Ok(None);
+                }
 
-                    let mut errors = Vec::new();
-                    for error in &results[0] {
-                        if let (Some(word), Some(pos), Some(suggestions)) = (
-                            error.get("word").and_then(|v| v.as_str()),
-                            error.get("pos").and_then(|v| v.as_i64()),
-                            error.get("s").and_then(|v| v.as_array()),
-                        ) {
-                            let suggestions_vec: Vec<String> = suggestions
-                                .iter()
-                                .filter_map(|s| s.as_str().map(|s| s.to_string()))
-                                .collect();
+                match response.json::<Vec<Vec<Value>>>().await {
+                    Ok(results) => {
+                        if results.is_empty() || results[0].is_empty() {
+                            return Ok(None);
+                        }
 
-                            if let Some(first_suggestion) = suggestions_vec.first() {
-                                errors.push(SpellingError {
-                                    original: word.to_string(),
-                                    suggested: first_suggestion.clone(),
-                                    position: pos as i32,
-                                    all_suggestions: suggestions_vec,
-                                });
+                        let mut errors = Vec::new();
+                        for error in &results[0] {
+                            if let (Some(word), Some(pos), Some(suggestions)) = (
+                                error.get("word").and_then(|v| v.as_str()),
+                                error.get("pos").and_then(|v| v.as_i64()),
+                                error.get("s").and_then(|v| v.as_array()),
+                            ) {
+                                let suggestions_vec: Vec<String> = suggestions
+                                    .iter()
+                                    .filter_map(|s| s.as_str().map(|s| s.to_string()))
+                                    .collect();
+
+                                if let Some(first_suggestion) = suggestions_vec.first() {
+                                    errors.push(SpellingError {
+                                        original: word.to_string(),
+                                        suggested: first_suggestion.clone(),
+                                        position: pos as i32,
+                                        all_suggestions: suggestions_vec,
+                                    });
+                                }
                             }
                         }
-                    }
 
-                    return Ok(if errors.is_empty() { None } else { Some(errors) });
+                        return Ok(if errors.is_empty() { None } else { Some(errors) });
+                    }
+                    Err(e) => {
+                        debug!("Failed to parse YandexSpeller response (attempt {}/{}): {}", attempt + 1, max_retries, e);
+                    }
                 }
-                Err(e) => {
-                    warn!("Failed to parse YandexSpeller response (attempt {}/{}): {}", attempt + 1, max_retries, e);
-                }
-            },
+            }
             Err(e) => {
-                warn!("YandexSpeller request error (attempt {}/{}): {}", attempt + 1, max_retries, e);
+                debug!("YandexSpeller request error (attempt {}/{}): {}", attempt + 1, max_retries, e);
             }
         }
 
@@ -87,7 +91,7 @@ pub async fn check_spelling(text: &str, max_retries: u32) -> Result<Option<Vec<S
         }
     }
 
-    error!("Failed to check spelling after {} attempts", max_retries);
+    debug!("Failed to check spelling after {} attempts for text: {}...", max_retries, &text[..std::cmp::min(50, text.len())]);
     Ok(None)
 }
 

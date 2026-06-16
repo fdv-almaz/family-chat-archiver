@@ -16,19 +16,16 @@ def check_spelling(text: str, max_retries: int = 3) -> Optional[List[Dict]]:
     if text.strip().startswith('/'):
         return None
 
-    # Filter out text with only special characters or URLs
+    # Filter out text with only special characters
     cleaned = ''.join(c for c in text if c.isalnum() or c.isspace())
     if len(cleaned.strip()) < 2:
         return None
-
-    # Strip trailing punctuation for API request (but keep for display)
-    text_for_api = text.rstrip('.,!?;:—–')
 
     for attempt in range(max_retries):
         try:
             response = requests.post(
                 YANDEX_SPELLER_API,
-                params={'text': text_for_api},
+                params={'text': text},
                 timeout=5
             )
             response.raise_for_status()
@@ -37,15 +34,22 @@ def check_spelling(text: str, max_retries: int = 3) -> Optional[List[Dict]]:
                 return errors[0] if isinstance(errors, list) and errors else None
             return None
         except requests.exceptions.Timeout:
-            logger.warning(f'YandexSpeller timeout (attempt {attempt + 1}/{max_retries})')
+            logger.debug(f'YandexSpeller timeout (attempt {attempt + 1}/{max_retries})')
+            if attempt < max_retries - 1:
+                time.sleep(1)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 400:
+                logger.debug(f'YandexSpeller bad request for text: {text[:50]}... (skipping)')
+                return None
+            logger.debug(f'YandexSpeller HTTP error: {e} (attempt {attempt + 1}/{max_retries})')
             if attempt < max_retries - 1:
                 time.sleep(1)
         except requests.exceptions.RequestException as e:
-            logger.warning(f'YandexSpeller request error: {e} (attempt {attempt + 1}/{max_retries})')
+            logger.debug(f'YandexSpeller request error: {e} (attempt {attempt + 1}/{max_retries})')
             if attempt < max_retries - 1:
                 time.sleep(1)
 
-    logger.error(f'Failed to check spelling after {max_retries} attempts')
+    logger.debug(f'Failed to check spelling after {max_retries} attempts for text: {text[:50]}...')
     return None
 
 def format_correction_message(text: str, errors: List[Dict]) -> tuple[str, List[Dict]]:
