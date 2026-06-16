@@ -16,12 +16,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 family-chat-archiver/
-├── python/          # Python реализация (телеграм-бот на pyTelegramBotAPI)
-├── rust/            # Rust реализация (телеграм-бот на teloxide)
+├── python/          # Python реализация бота (pyTelegramBotAPI)
+├── rust/            # Rust реализация бота (teloxide)
+├── web/             # Веб-интерфейс просмотра/поиска/управления (FastAPI)
+├── schema.sql       # Схема БД (опционально для ручного создания)
 └── CLAUDE.md        # Этот файл
 ```
 
-Каждая реализация полностью независима и содержит свой CLAUDE.md.
+Каждая папка содержит свой CLAUDE.md с деталями. Все три модуля работают с одной MySQL.
 
 ## Общая архитектура
 
@@ -50,13 +52,15 @@ MySQL Database
 
 **Таблицы:**
 - `users` — пользователи
-- `messages` — сообщения (с денормализованными `user_username/first_name/last_name`, `chat_title/type`)
+- `messages` — сообщения (с денормализованными `user_username/first_name/last_name`, `chat_title/type`, плюс `deleted_at` для soft-delete из веб-UI)
 - `media` — медиа-файлы (`type`: photo, video, audio, voice, video_note, animation, document, sticker; поля `file_name`, `duration`)
 - `links` — ссылки из сообщений
 - `spelling_corrections` — история орфографических ошибок
 - `service_events` — служебные события (user_joined, title_changed и т.д.)
 
-**При изменении схемы:** обновите одновременно `schema.sql`, `python/db.py::create_tables()` и `rust/src/db/pool.rs::create_tables()` (включая идемпотентные `ALTER TABLE` миграции).
+**При изменении схемы:** обновите одновременно `schema.sql`, `python/db.py::create_tables()`, `rust/src/db/pool.rs::create_tables()` и при необходимости `web/db.py::_ensure_*_column()` (включая идемпотентные `ALTER TABLE` миграции).
+
+**Soft-delete:** колонка `messages.deleted_at` ставится только из веб-UI вручную. Telegram Bot API не уведомляет об удалении сообщений в чате — для автодетекта нужен MTProto-companion (Telethon).
 
 ## Требования к надежности
 

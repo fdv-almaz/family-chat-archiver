@@ -59,22 +59,12 @@ mysql -u root -p < ../schema.sql
 
 ## Особенности реализации на Python
 
-**Проблемы старой версии и как их избежать:**
-
-1. **Зависание на получении обновлений:**
-   - Использовать timeout для polling
-   - Graceful обработка таймаутов
-   - Логирование потерянных соединений
-
-2. **Блокирующие операции с БД:**
-   - Connection pooling с переиспользованием соединений
-   - Батчинг запросов где возможно
-   - Timeout для DB операций
-
-3. **Утечки памяти:**
-   - Правильное закрытие соединений
-   - Явный graceful shutdown
-   - Обработка исключений в exception handlers
+- `bot.infinity_polling()` имеет встроенный retry — внешний цикл retry убран (был избыточным и конфликтовал с внутренним)
+- `safe_send()` обёртка вокруг `bot.send_message/reply_to` с retry на сетевые сбои (ConnectionError, RemoteDisconnected, TimeoutError) и exponential backoff
+- `is_bot` проверка в начале каждого хендлера — предотвращает циклы орфо-проверок на собственных ответах
+- Connection pooling MySQL (5 соединений) с явным закрытием в `finally`
+- `INSERT IGNORE` для защиты от дублирующихся сообщений (идемпотентность)
+- Графический shutdown через `signal.signal(SIGINT/SIGTERM)`
 
 ## Переменные окружения (.env)
 
@@ -85,6 +75,11 @@ MYSQL_PORT=3306
 MYSQL_USER=root
 MYSQL_PASSWORD=
 MYSQL_DATABASE=family_chat
+
 LOG_LEVEL=INFO
-SPELLING_VISIBILITY=public   # public | private | off
+LOG_FILE=logs/bot.log              # путь и имя файла логов
+LOG_RETENTION_DAYS=7               # дней хранить ротированные файлы
+LOG_TO_CONSOLE=true                # дублировать в stdout
+
+SPELLING_VISIBILITY=public         # public | private | off
 ```

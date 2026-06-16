@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS messages (
     text LONGTEXT,
     message_type VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL,         -- soft-delete marker (set by web UI)
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
     INDEX idx_chat_date (chat_id, created_at),
     INDEX idx_user_date (user_id, created_at),
