@@ -35,6 +35,29 @@ def message_context(message: types.Message) -> dict:
         'chat_type': chat.type,
     }
 
+def send_spelling_correction(message: types.Message, text: str, corrected: str, errors: list):
+    """Send spelling correction respecting SPELLING_VISIBILITY config."""
+    if config.SPELLING_VISIBILITY == 'off':
+        return False
+
+    author_name = message.from_user.first_name if message.from_user else None
+    correction_msg = format_chat_message(text, corrected, errors, author_name=author_name)
+    if not correction_msg:
+        return False
+
+    if config.SPELLING_VISIBILITY == 'private':
+        # Send DM to the author (requires user to have /start'd the bot)
+        try:
+            bot.send_message(message.from_user.id, correction_msg)
+            return True
+        except ApiException as e:
+            logger.debug(f'Cannot DM user {message.from_user.id}: {e}')
+            return False
+    else:
+        # public: reply in chat so everyone sees, but linked to original message
+        safe_send(bot.reply_to, message, correction_msg)
+        return True
+
 def safe_send(send_func, *args, max_retries=3, **kwargs):
     """Wrap bot.send_message/reply_to with retry on connection errors."""
     delay = 1
@@ -140,10 +163,8 @@ def handle_text_message(message: types.Message):
                 sent_to_chat=True
             )
 
-            # Send correction to chat (visible to all)
-            correction_message = format_chat_message(message.text, corrected_text, processed_errors)
-            if correction_message:
-                safe_send(bot.send_message, message.chat.id, correction_message)
+            sent = send_spelling_correction(message, message.text, corrected_text, processed_errors)
+            # Update sent_to_chat flag if needed (already set to True above; refine if needed later)
 
         logger.debug(f'Text message processed: user={message.from_user.id}, message_id={message.message_id}')
 
@@ -191,9 +212,7 @@ def handle_photo_message(message: types.Message):
                     errors_json,
                     sent_to_chat=True
                 )
-                correction_message = format_chat_message(caption, corrected_text, processed_errors)
-                if correction_message:
-                    safe_send(bot.send_message, message.chat.id, correction_message)
+                send_spelling_correction(message, caption, corrected_text, processed_errors)
 
         logger.debug(f'Photo message processed: user={message.from_user.id}, message_id={message.message_id}')
 
@@ -265,9 +284,7 @@ def handle_media_message(message: types.Message):
                     errors_json,
                     sent_to_chat=True
                 )
-                correction_message = format_chat_message(caption, corrected_text, processed_errors)
-                if correction_message:
-                    safe_send(bot.send_message, message.chat.id, correction_message)
+                send_spelling_correction(message, caption, corrected_text, processed_errors)
 
         logger.debug(f'{message_type} message processed: user={message.from_user.id}, message_id={message.message_id}')
 

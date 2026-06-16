@@ -88,28 +88,17 @@ def format_correction_message(text: str, errors: List[Dict]) -> tuple[str, List[
 
     return corrected_text, processed_errors
 
-def format_chat_message(text: str, corrected_text: str, errors: List[Dict]) -> str:
+def format_chat_message(text: str, corrected_text: str, errors: List[Dict],
+                        author_name: str = None) -> str:
     if not errors:
         return None
 
-    lines = [
-        '📚 <b>Орфографическая подсказка!</b>',
-        '',
-        f'<i>Было:</i> <code>{text}</code>',
-        f'<i>✨ Будет:</i> <code>{corrected_text}</code>',
-        '',
-        '🎯 <b>Что исправить:</b>'
-    ]
-
+    # Compact: one line per error, max 2 suggestions
+    parts = []
     for error in errors:
         original = error['original']
-        suggestions = ', '.join(error['all_suggestions'][:3])
-        lines.append(f'  • <b>{original}</b> → <i>{suggestions}</i>')
+        suggestions = ' / '.join(error['all_suggestions'][:2])
+        parts.append(f'<b>{original}</b> → <i>{suggestions}</i>')
 
-    lines.extend([
-        '',
-        '💡 <i>Совет: обрати внимание на эти слова в следующий раз!</i>',
-        '😊 <b>Спасибо за внимание к орфографии!</b>'
-    ])
-
-    return '\n'.join(lines)
+    prefix = f'✏️ {author_name}, ' if author_name else '✏️ '
+    return prefix + '; '.join(parts)

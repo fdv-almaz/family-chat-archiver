@@ -1,6 +1,13 @@
 use dotenv::dotenv;
 use std::env;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum SpellingVisibility {
+    Public,
+    Private,
+    Off,
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub telegram_bot_token: String,
@@ -9,6 +16,7 @@ pub struct Config {
     pub mysql_user: String,
     pub mysql_password: String,
     pub mysql_database: String,
+    pub spelling_visibility: SpellingVisibility,
 }
 
 impl Config {
@@ -17,6 +25,16 @@ impl Config {
 
         let telegram_bot_token = env::var("TELEGRAM_BOT_TOKEN")
             .map_err(|_| "TELEGRAM_BOT_TOKEN is required".to_string())?;
+
+        let visibility = match env::var("SPELLING_VISIBILITY")
+            .unwrap_or_else(|_| "public".to_string())
+            .to_lowercase()
+            .as_str()
+        {
+            "private" => SpellingVisibility::Private,
+            "off" => SpellingVisibility::Off,
+            _ => SpellingVisibility::Public,
+        };
 
         Ok(Config {
             telegram_bot_token,
@@ -29,6 +47,7 @@ impl Config {
             mysql_password: env::var("MYSQL_PASSWORD").unwrap_or_default(),
             mysql_database: env::var("MYSQL_DATABASE")
                 .unwrap_or_else(|_| "family_chat".to_string()),
+            spelling_visibility: visibility,
         })
     }
 }

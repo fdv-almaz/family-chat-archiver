@@ -120,33 +120,28 @@ pub fn format_correction_message(text: &str, errors: &[SpellingError]) -> (Strin
     (corrected_text, processed_errors)
 }
 
-pub fn format_chat_message(text: &str, corrected_text: &str, errors: &[SpellingError]) -> Option<String> {
+pub fn format_chat_message(
+    _text: &str,
+    _corrected_text: &str,
+    errors: &[SpellingError],
+    author_name: Option<&str>,
+) -> Option<String> {
     if errors.is_empty() {
         return None;
     }
 
-    let mut lines = vec![
-        "📚 <b>Орфографическая подсказка!</b>".to_string(),
-        "".to_string(),
-        format!("<i>Было:</i> <code>{}</code>", text),
-        format!("<i>✨ Будет:</i> <code>{}</code>", corrected_text),
-        "".to_string(),
-        "🎯 <b>Что исправить:</b>".to_string(),
-    ];
+    let parts: Vec<String> = errors
+        .iter()
+        .map(|e| {
+            let suggestions = e.all_suggestions.iter().take(2).cloned().collect::<Vec<_>>().join(" / ");
+            format!("<b>{}</b> → <i>{}</i>", e.original, suggestions)
+        })
+        .collect();
 
-    for error in errors {
-        let suggestions = error
-            .all_suggestions
-            .iter()
-            .take(3)
-            .collect::<Vec<_>>()
-            .join(", ");
-        lines.push(format!("  • <b>{}</b> → <i>{}</i>", error.original, suggestions));
-    }
+    let prefix = match author_name {
+        Some(name) => format!("✏️ {}, ", name),
+        None => "✏️ ".to_string(),
+    };
 
-    lines.push("".to_string());
-    lines.push("💡 <i>Совет: обрати внимание на эти слова в следующий раз!</i>".to_string());
-    lines.push("😊 <b>Спасибо за внимание к орфографии!</b>".to_string());
-
-    Some(lines.join("\n"))
+    Some(format!("{}{}", prefix, parts.join("; ")))
 }

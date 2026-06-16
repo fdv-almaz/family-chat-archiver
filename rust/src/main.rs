@@ -9,7 +9,7 @@ use log::{error, info, debug};
 use serde_json::json;
 use std::sync::Arc;
 
-use config::Config;
+use config::{Config, SpellingVisibility};
 use db::{DbPool, User, DbMessage, Media, SpellingCorrection};
 use processors::{check_spelling, format_correction_message, format_chat_message, extract_urls};
 
@@ -75,16 +75,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     db_pool.create_tables().await.map_err(|e| format!("DB init error: {}", e))?;
 
     let db_pool = Arc::new(db_pool);
+    let cfg = Arc::new(config.clone());
     let bot = Bot::new(&config.telegram_bot_token);
 
-    info!("Bot started, listening for messages...");
+    info!("Bot started, listening for messages... (spelling: {:?})", config.spelling_visibility);
 
     let handler = Update::filter_message()
         .endpoint({
             let db = Arc::clone(&db_pool);
+            let cfg = Arc::clone(&cfg);
             move |bot: Bot, msg: TgMessage| {
                 let db = Arc::clone(&db);
-                async move { handle_message(bot, msg, db).await }
+                let cfg = Arc::clone(&cfg);
+                async move { handle_message(bot, msg, db, cfg).await }
             }
         });
 
@@ -106,6 +109,7 @@ async fn handle_message(
     bot: Bot,
     message: TgMessage,
     db: Arc<DbPool>,
+    cfg: Arc<Config>,
 ) -> ResponseResult<()> {
     if let Some(user) = message.from.as_ref() {
         if user.is_bot {
@@ -135,42 +139,42 @@ async fn handle_message(
     }
 
     if let Some(text) = message.text() {
-        handle_text_message(&bot, &message, db.as_ref(), text).await;
+        handle_text_message(&bot, &message, db.as_ref(), &cfg, text).await;
     } else if let Some(photos) = message.photo() {
-        handle_photo_message(&bot, &message, db.as_ref(), photos, message.caption()).await;
+        handle_photo_message(&bot, &message, db.as_ref(), &cfg, photos, message.caption()).await;
     } else if let Some(video) = message.video() {
-        save_media(&bot, &message, db.as_ref(), "video",
+        save_media(&bot, &message, db.as_ref(), &cfg, "video",
             &video.file.id, &video.file.unique_id, video.file.size as i64,
             None, video.mime_type.as_ref().map(|m| m.to_string()),
             Some(video.duration as i32),
             message.caption()).await;
     } else if let Some(audio) = message.audio() {
-        save_media(&bot, &message, db.as_ref(), "audio",
+        save_media(&bot, &message, db.as_ref(), &cfg, "audio",
             &audio.file.id, &audio.file.unique_id, audio.file.size as i64,
             audio.file_name.clone(),
             audio.mime_type.as_ref().map(|m| m.to_string()),
             Some(audio.duration as i32),
             message.caption()).await;
     } else if let Some(voice) = message.voice() {
-        save_media(&bot, &message, db.as_ref(), "voice",
+        save_media(&bot, &message, db.as_ref(), &cfg, "voice",
             &voice.file.id, &voice.file.unique_id, voice.file.size as i64,
             None, voice.mime_type.as_ref().map(|m| m.to_string()),
             Some(voice.duration as i32),
             message.caption()).await;
     } else if let Some(video_note) = message.video_note() {
-        save_media(&bot, &message, db.as_ref(), "video_note",
+        save_media(&bot, &message, db.as_ref(), &cfg, "video_note",
             &video_note.file.id, &video_note.file.unique_id, video_note.file.size as i64,
             None, None, Some(video_note.duration as i32),
             None).await;
     } else if let Some(animation) = message.animation() {
-        save_media(&bot, &message, db.as_ref(), "animation",
+        save_media(&bot, &message, db.as_ref(), &cfg, "animation",
             &animation.file.id, &animation.file.unique_id, animation.file.size as i64,
             animation.file_name.clone(),
             animation.mime_type.as_ref().map(|m| m.to_string()),
             Some(animation.duration as i32),
             message.caption()).await;
     } else if let Some(document) = message.document() {
-        save_media(&bot, &message, db.as_ref(), "document",
+        save_media(&bot, &message, db.as_ref(), &cfg, "document",
             &document.file.id, &document.file.unique_id, document.file.size as i64,
             document.file_name.clone(),
             document.mime_type.as_ref().map(|m| m.to_string()),
@@ -223,6 +227,7 @@ async fn handle_text_message(
     bot: &Bot,
     message: &TgMessage,
     db: &DbPool,
+    cfg: &Config,
     text: &str,
 ) {
     let db_message = build_db_message(message, text, "text");
@@ -238,13 +243,14 @@ async fn handle_text_message(
         }
     }
 
-    process_spelling(bot, message, db, text).await;
+    process_spelling(bot, message, db, cfg, text).await;
 }
 
 async fn handle_photo_message(
     bot: &Bot,
     message: &TgMessage,
     db: &DbPool,
+    cfg: &Config,
     photos: &[PhotoSize],
     caption: Option<&str>,
 ) {
@@ -273,7 +279,7 @@ async fn handle_photo_message(
     }
 
     if !caption_text.is_empty() {
-        process_spelling(bot, message, db, caption_text).await;
+        process_spelling(bot, message, db, cfg, caption_text).await;
     }
 }
 
@@ -281,6 +287,7 @@ async fn save_media(
     bot: &Bot,
     message: &TgMessage,
     db: &DbPool,
+    cfg: &Config,
     media_type: &str,
     file_id: &str,
     file_unique_id: &str,
@@ -313,11 +320,11 @@ async fn save_media(
     }
 
     if !caption_text.is_empty() {
-        process_spelling(bot, message, db, caption_text).await;
+        process_spelling(bot, message, db, cfg, caption_text).await;
     }
 }
 
-async fn process_spelling(bot: &Bot, message: &TgMessage, db: &DbPool, text: &str) {
+async fn process_spelling(bot: &Bot, message: &TgMessage, db: &DbPool, cfg: &Config, text: &str) {
     match check_spelling(text, 3).await {
         Ok(Some(errors)) => {
             let (corrected_text, processed_errors) = format_correction_message(text, &errors);
@@ -328,17 +335,38 @@ async fn process_spelling(bot: &Bot, message: &TgMessage, db: &DbPool, text: &st
                 original_text: text.to_string(),
                 corrected_text: corrected_text.clone(),
                 errors: errors_json,
-                sent_to_chat: true,
+                sent_to_chat: cfg.spelling_visibility != SpellingVisibility::Off,
             };
             if let Err(e) = db.insert_spelling_correction(&correction).await {
                 error!("Failed to save spelling correction: {}", e);
             }
 
-            if let Some(correction_msg) = format_chat_message(text, &corrected_text, &errors) {
-                let _ = bot
-                    .send_message(message.chat.id, correction_msg)
-                    .parse_mode(teloxide::types::ParseMode::Html)
-                    .await;
+            if cfg.spelling_visibility == SpellingVisibility::Off {
+                return;
+            }
+
+            let author_name = message.from.as_ref().map(|u| u.first_name.as_str());
+
+            if let Some(correction_msg) = format_chat_message(text, &corrected_text, &errors, author_name) {
+                match cfg.spelling_visibility {
+                    SpellingVisibility::Private => {
+                        // DM to the author
+                        if let Some(user) = message.from.as_ref() {
+                            let _ = bot
+                                .send_message(ChatId(user.id.0 as i64), correction_msg)
+                                .parse_mode(teloxide::types::ParseMode::Html)
+                                .await;
+                        }
+                    }
+                    SpellingVisibility::Public => {
+                        let _ = bot
+                            .send_message(message.chat.id, correction_msg)
+                            .parse_mode(teloxide::types::ParseMode::Html)
+                            .reply_to_message_id(message.id)
+                            .await;
+                    }
+                    SpellingVisibility::Off => {}
+                }
             }
         }
         Err(e) => error!("Spelling check failed: {}", e),
