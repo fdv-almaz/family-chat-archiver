@@ -50,7 +50,7 @@ fn chat_type(chat: &Chat) -> Option<String> {
 }
 
 fn build_db_message(message: &TgMessage, text: &str, message_type: &str) -> DbMessage {
-    let user = message.from.as_ref();
+    let user = message.from();
     DbMessage {
         message_id: message.id.0 as i64,
         user_id: user.map(|u| u.id.0 as i64).unwrap_or(0),
@@ -136,7 +136,7 @@ async fn handle_message(
     db: Arc<DbPool>,
     cfg: Arc<Config>,
 ) -> ResponseResult<()> {
-    if let Some(user) = message.from.as_ref() {
+    if let Some(user) = message.from() {
         if user.is_bot {
             return Ok(());
         }
@@ -206,7 +206,7 @@ async fn handle_message(
             None,
             message.caption()).await;
     } else if let Some(sticker) = message.sticker() {
-        save_media(&bot, &message, db.as_ref(), "sticker",
+        save_media(&bot, &message, db.as_ref(), &cfg, "sticker",
             &sticker.file.id, &sticker.file.unique_id, sticker.file.size as i64,
             None, None, None, None).await;
     } else if let Some(contact) = message.contact() {
@@ -226,7 +226,7 @@ async fn handle_message(
         let text = format!("Poll: {} [{}]", poll.question, opts.join("; "));
         save_simple_message(db.as_ref(), &message, "poll", &text).await;
     } else if let Some(dice) = message.dice() {
-        let text = format!("Dice: {} = {}", dice.emoji, dice.value);
+        let text = format!("Dice: {:?} = {}", dice.emoji, dice.value);
         save_simple_message(db.as_ref(), &message, "dice", &text).await;
     } else if !message.new_chat_members().unwrap_or(&[]).is_empty() {
         handle_service_event(db.as_ref(), &message, "user_joined").await;
@@ -370,13 +370,13 @@ async fn process_spelling(bot: &Bot, message: &TgMessage, db: &DbPool, cfg: &Con
                 return;
             }
 
-            let author_name = message.from.as_ref().map(|u| u.first_name.as_str());
+            let author_name = message.from().map(|u| u.first_name.as_str());
 
             if let Some(correction_msg) = format_chat_message(text, &corrected_text, &errors, author_name) {
                 match cfg.spelling_visibility {
                     SpellingVisibility::Private => {
                         // DM to the author
-                        if let Some(user) = message.from.as_ref() {
+                        if let Some(user) = message.from() {
                             let _ = bot
                                 .send_message(ChatId(user.id.0 as i64), correction_msg)
                                 .parse_mode(teloxide::types::ParseMode::Html)
@@ -400,7 +400,7 @@ async fn process_spelling(bot: &Bot, message: &TgMessage, db: &DbPool, cfg: &Con
 }
 
 async fn handle_service_event(db: &DbPool, message: &TgMessage, event_type: &str) {
-    let user = message.from.as_ref();
+    let user = message.from();
     let user_id = user.map(|u| u.id.0 as i64);
     let username = user.and_then(|u| u.username.as_deref());
     let first_name = user.map(|u| u.first_name.as_str());
