@@ -17,6 +17,9 @@ pub struct Config {
     pub mysql_password: String,
     pub mysql_database: String,
     pub spelling_visibility: SpellingVisibility,
+    pub log_dir: String,
+    pub log_file_prefix: String,
+    pub log_to_console: bool,
 }
 
 impl Config {
@@ -36,6 +39,11 @@ impl Config {
             _ => SpellingVisibility::Public,
         };
 
+        let log_to_console = env::var("LOG_TO_CONSOLE")
+            .unwrap_or_else(|_| "true".to_string())
+            .to_lowercase();
+        let log_to_console = matches!(log_to_console.as_str(), "1" | "true" | "yes");
+
         Ok(Config {
             telegram_bot_token,
             mysql_host: env::var("MYSQL_HOST").unwrap_or_else(|_| "localhost".to_string()),
@@ -48,6 +56,9 @@ impl Config {
             mysql_database: env::var("MYSQL_DATABASE")
                 .unwrap_or_else(|_| "family_chat".to_string()),
             spelling_visibility: visibility,
+            log_dir: env::var("LOG_DIR").unwrap_or_else(|_| "logs".to_string()),
+            log_file_prefix: env::var("LOG_FILE_PREFIX").unwrap_or_else(|_| "bot.log".to_string()),
+            log_to_console,
         })
     }
 }

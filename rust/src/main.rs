@@ -67,9 +67,34 @@ fn build_db_message(message: &TgMessage, text: &str, message_type: &str) -> DbMe
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
-
     let config = Config::from_env().map_err(|e| format!("Config error: {}", e))?;
+
+    // Setup logging: rotating daily file + optional console
+    std::fs::create_dir_all(&config.log_dir).ok();
+    let file_appender = tracing_appender::rolling::daily(&config.log_dir, &config.log_file_prefix);
+    let (file_writer, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+
+    let registry = tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_subscriber::fmt::layer().with_writer(file_writer).with_ansi(false));
+
+    if config.log_to_console {
+        registry.with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout)).init();
+    } else {
+        registry.init();
+    }
+
+    // Bridge log crate (used by mysql, teloxide deps) into tracing
+    tracing_log::LogTracer::init().ok();
+
+    info!("Logging to {}/{} (console: {})", config.log_dir, config.log_file_prefix, config.log_to_console);
+
     let db_pool = DbPool::new(&config).map_err(|e| format!("DB error: {}", e))?;
 
     db_pool.create_tables().await.map_err(|e| format!("DB init error: {}", e))?;
