@@ -18,18 +18,26 @@ pub async fn check_spelling(text: &str, max_retries: u32) -> Result<Option<Vec<S
         return Ok(None);
     }
 
+    // Skip commands (text starting with /)
+    if text.trim().starts_with('/') {
+        return Ok(None);
+    }
+
     // Filter out text with only special characters
     let cleaned: String = text.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
     if cleaned.trim().len() < 2 {
         return Ok(None);
     }
 
+    // Strip trailing punctuation for API request
+    let text_for_api = text.trim_end_matches(|c: char| ".,!?;:—–".contains(c));
+
     let client = Client::new();
 
     for attempt in 0..max_retries {
         match client
             .post(YANDEX_SPELLER_API)
-            .query(&[("text", text)])
+            .query(&[("text", text_for_api)])
             .timeout(std::time::Duration::from_secs(5))
             .send()
             .await

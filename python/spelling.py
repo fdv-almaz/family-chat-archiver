@@ -12,16 +12,23 @@ def check_spelling(text: str, max_retries: int = 3) -> Optional[List[Dict]]:
     if not text or len(text.strip()) < 2:
         return None
 
+    # Skip commands (text starting with /)
+    if text.strip().startswith('/'):
+        return None
+
     # Filter out text with only special characters or URLs
     cleaned = ''.join(c for c in text if c.isalnum() or c.isspace())
     if len(cleaned.strip()) < 2:
         return None
 
+    # Strip trailing punctuation for API request (but keep for display)
+    text_for_api = text.rstrip('.,!?;:—–')
+
     for attempt in range(max_retries):
         try:
             response = requests.post(
                 YANDEX_SPELLER_API,
-                params={'text': text},
+                params={'text': text_for_api},
                 timeout=5
             )
             response.raise_for_status()
