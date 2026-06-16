@@ -68,6 +68,7 @@ def create_tables():
                 text LONGTEXT,
                 message_type VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP NULL,
                 FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
                 INDEX idx_chat_date (chat_id, created_at),
                 INDEX idx_user_date (user_id, created_at)
@@ -91,6 +92,13 @@ def create_tables():
         # Migrate message_type from ENUM to VARCHAR if needed (to allow new types)
         try:
             cursor.execute("ALTER TABLE messages MODIFY COLUMN message_type VARCHAR(20)")
+        except Error:
+            pass
+
+        # Soft-delete marker (used by web UI)
+        try:
+            cursor.execute("ALTER TABLE messages ADD COLUMN deleted_at TIMESTAMP NULL")
+            logger.info('Added column deleted_at to messages table')
         except Error:
             pass
 

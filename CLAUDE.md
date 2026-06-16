@@ -29,22 +29,28 @@ family-chat-archiver/
 
 ```
 Telegram API
-    ↓
-[Bot Handler (async)]
-    ↓
-[Message Processor]
-    ├─→ Extract text, media, users
-    ├─→ YandexSpeller check (async)
-    └─→ Format response
-    ↓
-[Database Layer]
-    ├─→ Save message
-    ├─→ Save media
-    ├─→ Save spelling corrections
-    └─→ Save service events
-    ↓
-MySQL Database
+    │
+    ▼ updates                            ▲ get_file / download_file
+[Bot (Python или Rust)]──────────────────┤
+    │                                    │
+    ▼ метаданные + spelling              │ (для файлов > 20 МБ — пропуск)
+[MySQL]   ← read-only ←  [Web (FastAPI)]─┘
+              │                ▲
+              │                │
+   `media.local_path`          │
+              │                │
+              ▼                │
+       [./storage]──────────── │
+       (файлы скачаны ботом)   │
+                               │
+            web fallback при отсутствии local_path
+            (для legacy данных) — кеш в `web/media_cache/`
 ```
+
+**Кто что хранит:**
+- **MySQL** — метаданные (текст, file_id, file_size, имена, время, пометка `deleted_at`)
+- **`./storage/{file_unique_id}.ext`** — сами байты файлов, скачивает бот при получении
+- **`./media_cache/`** в web — fallback для legacy записей без `local_path`
 
 ## Схема базы данных
 

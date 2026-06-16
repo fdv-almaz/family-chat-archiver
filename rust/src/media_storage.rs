@@ -14,11 +14,22 @@ async fn find_cached(storage_dir: &str, file_unique_id: &str) -> Option<PathBuf>
     while let Ok(Some(entry)) = entries.next_entry().await {
         if let Some(name) = entry.file_name().to_str() {
             if name.starts_with(file_unique_id) {
-                return Some(entry.path());
+                let path = entry.path();
+                return std::fs::canonicalize(&path).ok().or(Some(path));
             }
         }
     }
     None
+}
+
+fn to_absolute(p: &Path) -> PathBuf {
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .map(|cwd| cwd.join(p))
+            .unwrap_or_else(|_| p.to_path_buf())
+    }
 }
 
 /// Download a Telegram file via Bot API and save to storage_dir.
@@ -64,7 +75,7 @@ pub async fn download_and_save(
         .map(|e| format!(".{}", e))
         .unwrap_or_default();
 
-    let out_path = PathBuf::from(storage_dir).join(format!("{}{}", file_unique_id, ext));
+    let out_path = to_absolute(&PathBuf::from(storage_dir).join(format!("{}{}", file_unique_id, ext)));
 
     let mut file = match fs::File::create(&out_path).await {
         Ok(f) => f,

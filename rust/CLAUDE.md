@@ -8,6 +8,7 @@ rust/
 │   ├── main.rs              # Entry point, dispatcher, handlers
 │   ├── config.rs            # Config + SpellingVisibility enum
 │   ├── error.rs             # Error типы
+│   ├── media_storage.rs     # Скачивание Telegram-файлов в локальное хранилище
 │   ├── db/
 │   │   ├── mod.rs           # Module re-exports
 │   │   ├── pool.rs          # MySQL pool + create_tables + миграции
@@ -16,6 +17,8 @@ rust/
 │       ├── mod.rs
 │       ├── message.rs       # extract_urls()
 │       └── spelling.rs      # YandexSpeller API + форматирование
+├── storage/                 # Скачанные медиа (создаётся при старте)
+├── logs/                    # Ротированные логи (tracing-appender, daily)
 ├── Cargo.toml
 ├── .env.example
 └── CLAUDE.md
@@ -49,6 +52,12 @@ cargo clippy             # Линтер
 - Структуры `User`, `DbMessage` (имя `Db*` чтобы не конфликтовать с `teloxide::Message`), `Media`, `SpellingCorrection`
 - `insert_or_update_user`, `insert_message` (INSERT IGNORE), `insert_media`, `insert_link`, `insert_spelling_correction`, `insert_service_event`
 
+### media_storage.rs
+- `download_and_save(bot, dir, file_id, file_unique_id, file_size, max)`: async скачивание через `teloxide::net::Download` (`bot.get_file()` + `bot.download_file()`)
+- Сохранение в `MEDIA_STORAGE_DIR/{file_unique_id}{ext}`
+- Пропуск повторного скачивания (поиск по префиксу) и файлов больше лимита (~20 МБ Bot API)
+- Вызывается из `save_media_and_download()` в `main.rs` после `db.insert_media()`; путь обновляется в `media.local_path` через `update_media_local_path()`
+
 ### processors/spelling.rs
 - `check_spelling()`: POST к `speller.yandex.net/services/spellservice.json/checkText`, parse `Vec<Value>`, retry с backoff
 - Пропускает короткие тексты, команды, чисто служебные символы
@@ -78,6 +87,9 @@ MYSQL_DATABASE=family_chat
 LOG_LEVEL=info
 RUST_LOG=info,family_chat_archiver=debug
 SPELLING_VISIBILITY=public      # public | private | off
+
+MEDIA_STORAGE_DIR=storage       # папка для скачанных медиа
+MEDIA_MAX_DOWNLOAD_SIZE=20971520  # пропускать файлы больше N байт
 ```
 
 ## Замечания

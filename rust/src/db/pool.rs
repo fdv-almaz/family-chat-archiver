@@ -59,6 +59,7 @@ impl DbPool {
                 text LONGTEXT,
                 message_type VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP NULL,
                 FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
                 INDEX idx_chat_date (chat_id, created_at),
                 INDEX idx_user_date (user_id, created_at)
@@ -125,6 +126,7 @@ impl DbPool {
             "ALTER TABLE messages ADD COLUMN chat_title VARCHAR(255)",
             "ALTER TABLE messages ADD COLUMN chat_type VARCHAR(20)",
             "ALTER TABLE messages MODIFY COLUMN message_type VARCHAR(20)",
+            "ALTER TABLE messages ADD COLUMN deleted_at TIMESTAMP NULL",
             "ALTER TABLE media MODIFY COLUMN type VARCHAR(20)",
             "ALTER TABLE media MODIFY COLUMN file_size BIGINT",
             "ALTER TABLE media ADD COLUMN file_name VARCHAR(255)",

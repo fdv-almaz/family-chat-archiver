@@ -17,23 +17,29 @@ _pool = pooling.MySQLConnectionPool(
 )
 
 
-def _ensure_deleted_at_column():
-    """Add deleted_at column to messages if it doesn't exist (idempotent)."""
+def _ensure_columns():
+    """Add columns the web depends on if they don't exist (idempotent migrations)."""
     conn = _pool.get_connection()
     try:
         cursor = conn.cursor()
-        try:
-            cursor.execute("ALTER TABLE messages ADD COLUMN deleted_at TIMESTAMP NULL")
-            conn.commit()
-            logger.info("Added deleted_at column to messages")
-        except mysql.connector.Error:
-            pass  # column already exists
+        for sql, msg in [
+            ("ALTER TABLE messages ADD COLUMN deleted_at TIMESTAMP NULL",
+             "Added deleted_at to messages"),
+            ("ALTER TABLE media ADD COLUMN local_path VARCHAR(500)",
+             "Added local_path to media"),
+        ]:
+            try:
+                cursor.execute(sql)
+                conn.commit()
+                logger.info(msg)
+            except mysql.connector.Error:
+                pass  # column already exists
         cursor.close()
     finally:
         conn.close()
 
 
-_ensure_deleted_at_column()
+_ensure_columns()
 
 
 def query(sql: str, params=None, one: bool = False):

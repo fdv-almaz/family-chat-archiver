@@ -13,7 +13,7 @@ def _find_cached(file_unique_id: str) -> str | None:
     try:
         for name in os.listdir(MEDIA_STORAGE_DIR):
             if name.startswith(file_unique_id):
-                return os.path.join(MEDIA_STORAGE_DIR, name)
+                return os.path.abspath(os.path.join(MEDIA_STORAGE_DIR, name))
     except OSError:
         pass
     return None
@@ -50,7 +50,7 @@ def download_and_save(bot, file_id: str, file_unique_id: str,
     if not ext and suggested_ext:
         ext = suggested_ext if suggested_ext.startswith('.') else '.' + suggested_ext
 
-    out_path = os.path.join(MEDIA_STORAGE_DIR, file_unique_id + ext)
+    out_path = os.path.abspath(os.path.join(MEDIA_STORAGE_DIR, file_unique_id + ext))
 
     try:
         data = bot.download_file(file_info.file_path)
