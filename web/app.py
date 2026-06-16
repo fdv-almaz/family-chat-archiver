@@ -18,7 +18,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 DEFAULT_PAGE_SIZE = 100
-ALLOWED_PAGE_SIZES = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+ALLOWED_PAGE_SIZES = list(range(25, 1001, 25))  # 25, 50, 75, ..., 1000
 
 
 def _to_int(v):
