@@ -238,13 +238,13 @@ async fn handle_message(
         handle_service_event(db.as_ref(), &message, "title_changed").await;
     } else if message.new_chat_photo().is_some() {
         handle_service_event(db.as_ref(), &message, "photo_changed").await;
-    } else if message.delete_chat_photo() {
+    } else if message.delete_chat_photo().is_some() {
         handle_service_event(db.as_ref(), &message, "photo_deleted").await;
-    } else if message.group_chat_created() {
+    } else if message.group_chat_created().is_some() {
         handle_service_event(db.as_ref(), &message, "group_created").await;
-    } else if message.super_group_chat_created() {
+    } else if message.super_group_chat_created().is_some() {
         handle_service_event(db.as_ref(), &message, "supergroup_created").await;
-    } else if message.channel_chat_created() {
+    } else if message.channel_chat_created().is_some() {
         handle_service_event(db.as_ref(), &message, "channel_created").await;
     } else if message.pinned_message().is_some() {
         handle_service_event(db.as_ref(), &message, "message_pinned").await;
