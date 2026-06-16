@@ -52,6 +52,11 @@ th { background: #f8f9fc; font-weight: 600; }
 tr:hover td { background: #fafbfd; }
 .text-cell { max-width: 600px; }
 .num { text-align: right; color: #888; font-variant-numeric: tabular-nums; width: 1%; white-space: nowrap; }
+.deleted-row td { background: #fff0f0 !important; color: #999; text-decoration: line-through; }
+.deleted-row td.num, .deleted-row td .muted { text-decoration: none; }
+.deleted-row .badge { opacity: 0.6; }
+.deleted-banner { background: #ffebee; color: #c62828; padding: 8px 12px; border-radius: 4px; margin: 8px 0; font-size: 13px; }
+.actions { display: flex; gap: 12px; margin-top: 16px; }
 .text-cell audio { width: 100%; max-width: 360px; height: 32px; margin-top: 6px; display: block; }
 .text-cell video.thumb { max-width: 240px; max-height: 180px; margin-top: 6px; border-radius: 4px; display: block; }
 .text-cell img.thumb { max-width: 180px; max-height: 180px; margin-top: 6px; border-radius: 4px; display: block; }

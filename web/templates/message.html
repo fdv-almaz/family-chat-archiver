@@ -4,7 +4,7 @@
 
 <p><a href="javascript:history.back()">← Назад</a></p>
 
-<article class="message-detail">
+<article class="message-detail {% if msg.deleted_at %}deleted-row{% endif %}">
   <header>
     <h1>
       {{ msg.display_first_name or '—' }}
@@ -15,6 +15,9 @@
       Чат: {{ msg.chat_title or msg.chat_id }} ·
       Тип: <span class="badge type-{{ msg.message_type }}">{{ msg.message_type }}</span>
     </p>
+    {% if msg.deleted_at %}
+      <p class="deleted-banner">🗑 Сообщение помечено как удалённое {{ msg.deleted_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+    {% endif %}
   </header>
 
   {% if msg.text %}
@@ -62,11 +65,20 @@
     {% endfor %}
   {% endif %}
 
-  <footer>
-    <form method="post" action="/message/{{ msg.message_id }}/delete"
-          onsubmit="return confirm('Удалить сообщение #{{ msg.message_id }}? Это также удалит связанные медиа, ссылки и подсказки.')">
-      <button type="submit" class="danger">🗑 Удалить</button>
-    </form>
+  <footer class="actions">
+    {% if msg.deleted_at %}
+      <form method="post" action="/message/{{ msg.message_id }}/restore">
+        <button type="submit">↩ Восстановить</button>
+      </form>
+      <form method="post" action="/message/{{ msg.message_id }}/hard-delete"
+            onsubmit="return confirm('Удалить #{{ msg.message_id }} БЕЗВОЗВРАТНО? Связанные медиа, ссылки и подсказки тоже удалятся.')">
+        <button type="submit" class="danger">⚠ Удалить окончательно</button>
+      </form>
+    {% else %}
+      <form method="post" action="/message/{{ msg.message_id }}/delete">
+        <button type="submit" class="danger">🗑 Пометить как удалённое</button>
+      </form>
+    {% endif %}
   </footer>
 </article>
 

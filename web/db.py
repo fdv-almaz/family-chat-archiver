@@ -1,6 +1,9 @@
+import logging
 import mysql.connector
 from mysql.connector import pooling
 from config import MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE
+
+logger = logging.getLogger(__name__)
 
 _pool = pooling.MySQLConnectionPool(
     pool_name="web_pool",
@@ -12,6 +15,25 @@ _pool = pooling.MySQLConnectionPool(
     database=MYSQL_DATABASE,
     charset='utf8mb4',
 )
+
+
+def _ensure_deleted_at_column():
+    """Add deleted_at column to messages if it doesn't exist (idempotent)."""
+    conn = _pool.get_connection()
+    try:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("ALTER TABLE messages ADD COLUMN deleted_at TIMESTAMP NULL")
+            conn.commit()
+            logger.info("Added deleted_at column to messages")
+        except mysql.connector.Error:
+            pass  # column already exists
+        cursor.close()
+    finally:
+        conn.close()
+
+
+_ensure_deleted_at_column()
 
 
 def query(sql: str, params=None, one: bool = False):
@@ -231,5 +253,14 @@ def list_corrections(limit=50, offset=0):
     """, (limit, offset))
 
 
-def delete_message(message_id: int) -> int:
+def soft_delete_message(message_id: int) -> int:
+    return execute("UPDATE messages SET deleted_at = NOW() WHERE message_id = %s AND deleted_at IS NULL",
+                   (message_id,))
+
+
+def restore_message(message_id: int) -> int:
+    return execute("UPDATE messages SET deleted_at = NULL WHERE message_id = %s", (message_id,))
+
+
+def hard_delete_message(message_id: int) -> int:
     return execute("DELETE FROM messages WHERE message_id = %s", (message_id,))

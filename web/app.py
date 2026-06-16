@@ -90,8 +90,21 @@ def view_message(request: Request, message_id: int):
 
 @app.post("/message/{message_id}/delete")
 def delete_message(message_id: int):
-    affected = db.delete_message(message_id)
-    if not affected:
+    if not db.soft_delete_message(message_id):
+        raise HTTPException(404, "Message not found or already deleted")
+    return RedirectResponse(f"/message/{message_id}", status_code=303)
+
+
+@app.post("/message/{message_id}/restore")
+def restore_message(message_id: int):
+    if not db.restore_message(message_id):
+        raise HTTPException(404, "Message not found")
+    return RedirectResponse(f"/message/{message_id}", status_code=303)
+
+
+@app.post("/message/{message_id}/hard-delete")
+def hard_delete_message(message_id: int):
+    if not db.hard_delete_message(message_id):
         raise HTTPException(404, "Message not found")
     return RedirectResponse("/", status_code=303)
 
