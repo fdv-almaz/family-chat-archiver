@@ -9,7 +9,12 @@ logger = logging.getLogger(__name__)
 YANDEX_SPELLER_API = 'https://speller.yandex.net/services/spellchecker.json/checkTexts'
 
 def check_spelling(text: str, max_retries: int = 3) -> Optional[List[Dict]]:
-    if not text or len(text.strip()) == 0:
+    if not text or len(text.strip()) < 2:
+        return None
+
+    # Filter out text with only special characters or URLs
+    cleaned = ''.join(c for c in text if c.isalnum() or c.isspace())
+    if len(cleaned.strip()) < 2:
         return None
 
     for attempt in range(max_retries):

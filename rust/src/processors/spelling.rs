@@ -14,7 +14,13 @@ pub struct SpellingError {
 }
 
 pub async fn check_spelling(text: &str, max_retries: u32) -> Result<Option<Vec<SpellingError>>> {
-    if text.trim().is_empty() {
+    if text.trim().len() < 2 {
+        return Ok(None);
+    }
+
+    // Filter out text with only special characters
+    let cleaned: String = text.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace()).collect();
+    if cleaned.trim().len() < 2 {
         return Ok(None);
     }
 
