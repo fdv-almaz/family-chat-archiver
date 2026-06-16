@@ -46,81 +46,17 @@ MySQL Database
 
 ## Схема базы данных
 
-**Таблица users**
-```sql
-CREATE TABLE users (
-  user_id BIGINT PRIMARY KEY,
-  username VARCHAR(32),
-  first_name VARCHAR(255),
-  last_name VARCHAR(255),
-  is_bot BOOLEAN,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+Актуальная схема — в файле [`schema.sql`](./schema.sql) в корне проекта. Таблицы создаются автоматически при первом запуске.
 
-**Таблица messages**
-```sql
-CREATE TABLE messages (
-  message_id BIGINT PRIMARY KEY,
-  user_id BIGINT,
-  chat_id BIGINT,
-  text LONGTEXT,
-  message_type ENUM('text', 'photo', 'video', 'document', 'voice', 'service'),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(user_id)
-);
-```
+**Таблицы:**
+- `users` — пользователи
+- `messages` — сообщения (с денормализованными `user_username/first_name/last_name`, `chat_title/type`)
+- `media` — медиа-файлы (`type`: photo, video, audio, voice, video_note, animation, document, sticker; поля `file_name`, `duration`)
+- `links` — ссылки из сообщений
+- `spelling_corrections` — история орфографических ошибок
+- `service_events` — служебные события (user_joined, title_changed и т.д.)
 
-**Таблица media**
-```sql
-CREATE TABLE media (
-  media_id INT AUTO_INCREMENT PRIMARY KEY,
-  message_id BIGINT,
-  type ENUM('photo', 'video', 'document', 'voice'),
-  file_id VARCHAR(255),
-  file_unique_id VARCHAR(255),
-  file_size INT,
-  mime_type VARCHAR(100),
-  FOREIGN KEY (message_id) REFERENCES messages(message_id)
-);
-```
-
-**Таблица links**
-```sql
-CREATE TABLE links (
-  link_id INT AUTO_INCREMENT PRIMARY KEY,
-  message_id BIGINT,
-  url VARCHAR(2048),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (message_id) REFERENCES messages(message_id)
-);
-```
-
-**Таблица spelling_corrections**
-```sql
-CREATE TABLE spelling_corrections (
-  correction_id INT AUTO_INCREMENT PRIMARY KEY,
-  message_id BIGINT,
-  original_text LONGTEXT,
-  corrected_text LONGTEXT,
-  errors JSON,
-  sent_to_chat BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (message_id) REFERENCES messages(message_id)
-);
-```
-
-**Таблица service_events**
-```sql
-CREATE TABLE service_events (
-  event_id INT AUTO_INCREMENT PRIMARY KEY,
-  chat_id BIGINT,
-  event_type VARCHAR(50),
-  user_id BIGINT,
-  data JSON,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+**При изменении схемы:** обновите одновременно `schema.sql`, `python/db.py::create_tables()` и `rust/src/db/pool.rs::create_tables()` (включая идемпотентные `ALTER TABLE` миграции).
 
 ## Требования к надежности
 
@@ -141,4 +77,7 @@ MYSQL_USER=...
 MYSQL_PASSWORD=...
 MYSQL_DATABASE=...
 LOG_LEVEL=info
+SPELLING_VISIBILITY=public   # public | private | off
 ```
+
+См. `.env.example` в каждой реализации.

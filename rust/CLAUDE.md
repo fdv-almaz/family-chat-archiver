@@ -5,108 +5,66 @@
 ```
 rust/
 ├── src/
-│   ├── main.rs          # Entry point, polling loop
-│   ├── config.rs        # Конфигурация (env переменные)
+│   ├── main.rs              # Entry point, dispatcher, handlers
+│   ├── config.rs            # Config + SpellingVisibility enum
+│   ├── error.rs             # Error типы
 │   ├── db/
-│   │   ├── mod.rs       # Module exports
-│   │   ├── pool.rs      # MySQL connection pooling
-│   │   └── models.rs    # DB моделе и операции
-│   ├── handlers/
-│   │   ├── mod.rs
-│   │   ├── messages.rs  # Обработка сообщений
-│   │   └── service.rs   # Служебные события
-│   ├── processors/
-│   │   ├── mod.rs
-│   │   ├── message.rs   # Парсинг сообщений
-│   │   ├── media.rs     # Обработка медиа
-│   │   └── spelling.rs  # Проверка орфографии
-│   └── error.rs         # Error типы
-├── Cargo.toml           # Зависимости
+│   │   ├── mod.rs           # Module re-exports
+│   │   ├── pool.rs          # MySQL pool + create_tables + миграции
+│   │   └── models.rs        # DbMessage, User, Media, SpellingCorrection + insert_*
+│   └── processors/
+│       ├── mod.rs
+│       ├── message.rs       # extract_urls()
+│       └── spelling.rs      # YandexSpeller API + форматирование
+├── Cargo.toml
 ├── .env.example
-└── CLAUDE.md           # Этот файл
+└── CLAUDE.md
 ```
 
 ## Команды разработки
 
-**Сборка проекта:**
 ```bash
-cargo build --release
-```
-
-**Запуск бота:**
-```bash
-cargo run
-```
-
-**Запуск тестов:**
-```bash
-cargo test
-```
-
-**Проверка кода:**
-```bash
-cargo clippy
+cargo build --release    # Сборка
+cargo run                # Запуск (для разработки)
+cargo test               # Тесты
+cargo clippy             # Линтер
 ```
 
 ## Основные компоненты
 
 ### main.rs
-- Инициализация конфига
-- Инициализация БД пула
-- Polling loop через teloxide
-- Graceful shutdown с обработкой SIGTERM
+- `main()`: загрузка конфига, инициализация `DbPool`, создание таблиц, запуск teloxide Dispatcher с `enable_ctrlc_handler`
+- `handle_message()`: dispatch по типу контента — text / photo / video / audio / voice / video_note / animation / document / sticker / contact / location / venue / poll / dice / служебные события
+- `build_db_message()`: денормализованные user/chat поля
+- `chat_title()`, `chat_type()`: хелперы для извлечения info из `Chat`
+- `process_spelling()`: применяет `SpellingVisibility` (public reply / private DM / off)
+- Пропускает сообщения от ботов (защита от циклов)
+- `/start`, `/help`: HTML-описание бота
 
 ### db/pool.rs
-- `DbPool` — обертка над `mysql` pool
-- Retry logic с exponential backoff
-- Connection health check
+- `DbPool`: `Arc<mysql::Pool>` для shared use
+- `create_tables()`: CREATE IF NOT EXISTS + список идемпотентных `ALTER TABLE` для миграций
 
-### handlers/messages.rs
-- `handle_message()` — основной handler
-- Сохранение сообщения
-- Запуск проверки орфографии
-- Отправка исправлений в чат
+### db/models.rs
+- Структуры `User`, `DbMessage` (имя `Db*` чтобы не конфликтовать с `teloxide::Message`), `Media`, `SpellingCorrection`
+- `insert_or_update_user`, `insert_message` (INSERT IGNORE), `insert_media`, `insert_link`, `insert_spelling_correction`, `insert_service_event`
 
 ### processors/spelling.rs
-- `check_spelling()` — async запрос к YandexSpeller API
-- `format_corrections()` — форматирование для отправки в чат
-- Retry logic и timeout
+- `check_spelling()`: POST к `speller.yandex.net/services/spellservice.json/checkText`, parse `Vec<Value>`, retry с backoff
+- Пропускает короткие тексты, команды, чисто служебные символы
+- `format_correction_message()`: применяет первое предложение к тексту
+- `format_chat_message()`: компактный однострочный формат с обращением по имени
 
-### processors/media.rs
-- `extract_media_info()` — информация из attachments
-- `save_media()` — сохранение в таблицу media
+## Зависимости (см. `Cargo.toml`)
 
-## Зависимости
-
-```toml
-[dependencies]
-tokio = { version = "1", features = ["full"] }
-teloxide = { version = "0.12", features = ["macros"] }
-mysql = "25.0"
-mysql_common = "0.32"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-dotenv = "0.15"
-log = "0.4"
-env_logger = "0.10"
-reqwest = { version = "0.11", features = ["json"] }
-```
-
-## Особенности реализации на Rust
-
-**Преимущества для надежности:**
-
-1. **Type safety** — impossibility of null pointer bugs, memory safety
-2. **Async/await** — non-blocking I/O через tokio
-3. **Error handling** — требуемая явная обработка ошибок
-4. **Memory safety** — отсутствие утечек памяти и buffer overflows
-
-**Специфические реализационные детали:**
-
-- `teloxide::dispatching` для routing обработчиков
-- `tokio::sync::Mutex` для синхронизации состояния
-- `Result<T, E>` everywhere для обработки ошибок
-- Graceful shutdown через `tokio::signal::ctrl_c()`
+- `teloxide 0.12` — Telegram Bot API
+- `tokio 1` (full) — async runtime
+- `mysql 25.0` + `mysql_common 0.32` — MySQL driver
+- `reqwest 0.11` (json) — HTTP для YandexSpeller
+- `serde`, `serde_json` — JSON
+- `regex` + `lazy_static` — извлечение URL
+- `log` + `env_logger` — логирование
+- `dotenv` — `.env` файлы
 
 ## Переменные окружения (.env)
 
@@ -119,4 +77,10 @@ MYSQL_PASSWORD=
 MYSQL_DATABASE=family_chat
 LOG_LEVEL=info
 RUST_LOG=info,family_chat_archiver=debug
+SPELLING_VISIBILITY=public      # public | private | off
 ```
+
+## Замечания
+
+- При добавлении нового типа сообщения: расширить `handle_message()`, при необходимости добавить колонки в `db/pool.rs` миграции и обновить `schema.sql` в корне.
+- При изменении схемы БД — добавить `ALTER TABLE` в `create_tables()` миграции (идемпотентно — ошибки игнорируются).

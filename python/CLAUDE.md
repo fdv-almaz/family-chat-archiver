@@ -4,14 +4,13 @@
 
 ```
 python/
-├── bot.py              # Основной файл бота
-├── config.py           # Конфигурация (env переменные)
-├── db.py               # Работа с MySQL
-├── processors.py       # Обработчики сообщений и медиа
-├── spelling.py         # Проверка орфографии (YandexSpeller)
+├── bot.py              # Основной файл: handlers, polling, отправка
+├── config.py           # Конфигурация (env переменные, SPELLING_VISIBILITY)
+├── db.py               # MySQL pool, миграции, CRUD-функции
+├── spelling.py         # YandexSpeller API + форматирование подсказок
 ├── requirements.txt    # Зависимости
 ├── .env.example        # Шаблон конфига
-└── CLAUDE.md          # Этот файл
+└── CLAUDE.md           # Этот файл
 ```
 
 ## Команды разработки
@@ -26,35 +25,30 @@ pip install -r requirements.txt
 python bot.py
 ```
 
-**Создание БД:**
+**Создание БД (опционально — таблицы создаются автоматически при первом запуске):**
 ```bash
-mysql -u user -p database < schema.sql
+mysql -u root -p < ../schema.sql
 ```
 
 ## Основные компоненты
 
 ### bot.py
-- Инициализация TelegramBotAPI
-- Основной polling loop
-- Обработчики событий сообщений
-- Graceful shutdown
+- TeleBot инициализация + polling
+- Обработчики: `handle_start`, `handle_text_message`, `handle_photo_message`, `handle_media_message` (audio/video/voice/video_note/animation/document/sticker), `handle_special_message` (contact/location/venue/poll/dice), `handle_other_events` (служебные)
+- Хелперы: `message_context()` (денормализованные user/chat поля), `safe_send()` (retry на сетевые сбои), `send_spelling_correction()` (роутинг по `SPELLING_VISIBILITY`)
+- Пропускает сообщения от ботов (защита от циклов)
 
 ### db.py
-- Connection pooling к MySQL (использовать `DBPool`)
-- CRUD операции для каждой таблицы
-- Retry logic при потере соединения
-- Транзакции для сохранения сообщения + медиа
-
-### processors.py
-- `extract_message_data()` — парсинг сообщения (текст, медиа, ссылки)
-- `extract_user_data()` — информация об авторе
-- `save_message_to_db()` — сохранение с обработкой ошибок
-- `handle_media()` — загрузка и сохранение информации о медиа
+- `DBPool` — singleton с MySQL connection pool
+- `create_tables()` — создание + идемпотентные `ALTER TABLE` миграции
+- CRUD: `insert_or_update_user`, `insert_message`, `insert_media`, `insert_link`, `insert_spelling_correction`, `insert_service_event`
+- `INSERT IGNORE` для защиты от дубликатов
 
 ### spelling.py
-- `check_spelling()` — вызов YandexSpeller API
-- `format_corrections()` — форматирование ошибок для вывода в чат
-- Retry logic при недоступности API
+- `check_spelling()` — POST к `speller.yandex.net/services/spellservice.json/checkText` с retry и backoff
+- Пропускает короткий текст, команды (`/...`), чисто служебные символы
+- `format_correction_message()` — применяет исправления
+- `format_chat_message()` — компактный однострочный формат с обращением по имени
 
 ## Зависимости
 
@@ -92,4 +86,5 @@ MYSQL_USER=root
 MYSQL_PASSWORD=
 MYSQL_DATABASE=family_chat
 LOG_LEVEL=INFO
+SPELLING_VISIBILITY=public   # public | private | off
 ```

@@ -36,6 +36,7 @@ family-chat-archiver/
 │   └── CLAUDE.md           # Документация
 │
 ├── CLAUDE.md        # Общая архитектура
+├── schema.sql       # Схема БД (для ручного создания)
 └── README.md        # Этот файл
 ```
 
@@ -48,6 +49,13 @@ family-chat-archiver/
 - Rust 1.70+ (для Rust версии)
 - Telegram Bot Token (получить от @BotFather)
 
+### Создание БД (один раз, общее для обеих реализаций)
+
+```bash
+# Схема создаётся автоматически при первом запуске бота, но можно явно:
+mysql -u root -p < schema.sql
+```
+
 ### Python версия
 
 ```bash
@@ -58,12 +66,9 @@ pip install -r requirements.txt
 
 # Создание конфига
 cp .env.example .env
-# Отредактировать .env с вашими данными
+# Отредактировать .env с вашими данными (TELEGRAM_BOT_TOKEN, MYSQL_*, SPELLING_VISIBILITY)
 
-# Создание БД
-mysql -u root -p your_database < ../CLAUDE.md  # (нужна схема в отдельном файле)
-
-# Запуск бота
+# Запуск бота (таблицы создаются автоматически)
 python bot.py
 ```
 
@@ -95,18 +100,42 @@ MYSQL_USER=root
 MYSQL_PASSWORD=your_password
 MYSQL_DATABASE=family_chat
 LOG_LEVEL=info
+
+# Видимость орфографических подсказок:
+#   public  - reply в чате, видят все
+#   private - личное сообщение автору (он должен сначала /start бота в DM)
+#   off     - в чат не отправлять, только сохранять в БД
+SPELLING_VISIBILITY=public
 ```
 
 ## Схема базы данных
 
-Все таблицы автоматически создаются при первом запуске:
+Все таблицы автоматически создаются при первом запуске (см. `schema.sql`):
 
 - **users** — информация о пользователях
-- **messages** — архив сообщений
-- **media** — информация о медиа-файлах
+- **messages** — архив сообщений (с денормализованными именами автора/чата)
+- **media** — информация о медиа-файлах (photo, video, audio, voice, video_note, animation, document, sticker)
 - **links** — ссылки из сообщений
 - **spelling_corrections** — история орфографических ошибок и исправлений
-- **service_events** — служебные события группы
+- **service_events** — служебные события группы (вход/выход, изменение названия и т.д.)
+
+### Поддерживаемые типы сообщений
+
+| Тип | Описание |
+|-----|----------|
+| `text` | Текстовые сообщения |
+| `photo` | Фото |
+| `video` | Видео |
+| `audio` | Музыка (mp3 и т.п.) |
+| `voice` | Голосовые сообщения |
+| `video_note` | Кружочки |
+| `animation` | GIF |
+| `document` | Документы |
+| `sticker` | Стикеры |
+| `contact` | Контакты |
+| `location` / `venue` | Геопозиция |
+| `poll` | Опросы |
+| `dice` | Игральные кости |
 
 ## Различия между реализациями
 
