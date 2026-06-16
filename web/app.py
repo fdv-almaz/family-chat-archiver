@@ -20,26 +20,39 @@ templates = Jinja2Templates(directory="templates")
 PAGE_SIZE = 50
 
 
+def _to_int(v):
+    """Convert empty string / None to None, else int."""
+    if v is None or v == '':
+        return None
+    try:
+        return int(v)
+    except (ValueError, TypeError):
+        return None
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
-    chat_id: int | None = Query(None),
-    user_id: int | None = Query(None),
+    chat_id: str | None = Query(None),
+    user_id: str | None = Query(None),
     message_type: str | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     q: str | None = Query(None),
     page: int = Query(1, ge=1),
 ):
+    chat_id = _to_int(chat_id)
+    user_id = _to_int(user_id)
+    message_type = message_type or None
     offset = (page - 1) * PAGE_SIZE
     messages = db.list_messages(
         chat_id=chat_id, user_id=user_id, message_type=message_type,
         date_from=date_from or None, date_to=date_to or None,
-        search=q, limit=PAGE_SIZE, offset=offset
+        search=q or None, limit=PAGE_SIZE, offset=offset
     )
     total = db.count_messages(
         chat_id=chat_id, user_id=user_id, message_type=message_type,
-        date_from=date_from or None, date_to=date_to or None, search=q
+        date_from=date_from or None, date_to=date_to or None, search=q or None
     )
 
     return templates.TemplateResponse("index.html", {
