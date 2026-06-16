@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Орфография{% endblock %}
+{% block content %}
+
+<h1>Орфографические исправления</h1>
+
+<table>
+  <thead>
+    <tr><th>Когда</th><th>Кто</th><th>Было</th><th>Стало</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for c in corrections %}
+      <tr>
+        <td class="nowrap">{{ c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else '' }}</td>
+        <td>{{ c.user_first_name or '—' }}</td>
+        <td><code>{{ (c.original_text or '')[:120] }}</code></td>
+        <td><code>{{ (c.corrected_text or '')[:120] }}</code></td>
+        <td><a href="/message/{{ c.message_id }}">→</a></td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

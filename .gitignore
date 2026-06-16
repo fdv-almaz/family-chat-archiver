@@ -7,6 +7,9 @@ logs/
 *.log
 *.log.*
 
+# Web media cache
+web/media_cache/
+
 # Python
 __pycache__/
 *.py[cod]

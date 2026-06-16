@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Сообщение #{{ msg.message_id }}{% endblock %}
+{% block content %}
+
+<p><a href="javascript:history.back()">← Назад</a></p>
+
+<article class="message-detail">
+  <header>
+    <h1>
+      {{ msg.display_first_name or '—' }}
+      {% if msg.display_username %}<span class="muted">@{{ msg.display_username }}</span>{% endif %}
+    </h1>
+    <p class="muted">
+      {{ msg.created_at.strftime('%Y-%m-%d %H:%M:%S') if msg.created_at else '' }} ·
+      Чат: {{ msg.chat_title or msg.chat_id }} ·
+      Тип: <span class="badge type-{{ msg.message_type }}">{{ msg.message_type }}</span>
+    </p>
+  </header>
+
+  {% if msg.text %}
+    <div class="text-block">{{ msg.text }}</div>
+  {% endif %}
+
+  {% if msg.media %}
+    <div class="media-block">
+      {% for m in msg.media %}
+        {% set src = '/media/' ~ m.media_id %}
+        <div class="media-item">
+          {% if m.type == 'photo' or m.type == 'sticker' or m.type == 'animation' %}
+            <img src="{{ src }}" alt="{{ m.type }}" loading="lazy">
+          {% elif m.type == 'video' or m.type == 'video_note' %}
+            <video controls src="{{ src }}"></video>
+          {% elif m.type == 'audio' or m.type == 'voice' %}
+            <audio controls src="{{ src }}"></audio>
+            {% if m.duration %}<span class="muted">{{ m.duration }}s</span>{% endif %}
+            {% if m.file_name %}<div class="muted">{{ m.file_name }}</div>{% endif %}
+          {% elif m.type == 'document' %}
+            <a href="{{ src }}" download="{{ m.file_name or 'file' }}">
+              📎 {{ m.file_name or 'document' }}
+              {% if m.file_size %}<span class="muted">({{ (m.file_size / 1024) | round(1) }} KB)</span>{% endif %}
+            </a>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if msg.links %}
+    <h3>Ссылки</h3>
+    <ul>
+      {% for l in msg.links %}<li><a href="{{ l.url }}" rel="noopener" target="_blank">{{ l.url }}</a></li>{% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if msg.corrections %}
+    <h3>Орфографические подсказки</h3>
+    {% for c in msg.corrections %}
+      <div class="correction">
+        <div><strong>Было:</strong> <code>{{ c.original_text }}</code></div>
+        <div><strong>Стало:</strong> <code>{{ c.corrected_text }}</code></div>
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <footer>
+    <form method="post" action="/message/{{ msg.message_id }}/delete"
+          onsubmit="return confirm('Удалить сообщение #{{ msg.message_id }}? Это также удалит связанные медиа, ссылки и подсказки.')">
+      <button type="submit" class="danger">🗑 Удалить</button>
+    </form>
+  </footer>
+</article>
+
+{% endblock %}

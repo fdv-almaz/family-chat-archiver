@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Пользователи{% endblock %}
+{% block content %}
+
+<h1>Пользователи <small class="muted">({{ users|length }})</small></h1>
+
+<table class="users">
+  <thead>
+    <tr><th>Имя</th><th>Username</th><th>ID</th><th>Сообщений</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for u in users %}
+      <tr>
+        <td>{{ u.first_name or '—' }} {{ u.last_name or '' }}</td>
+        <td>{{ ('@' ~ u.username) if u.username else '' }}</td>
+        <td class="muted">{{ u.user_id }}</td>
+        <td>{{ u.message_count }}</td>
+        <td><a href="/?user_id={{ u.user_id }}">Сообщения →</a></td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

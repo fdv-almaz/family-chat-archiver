@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Статистика{% endblock %}
+{% block content %}
+
+<h1>Статистика</h1>
+
+<div class="cards">
+  <div class="card"><div class="big">{{ overview.total_messages }}</div><div>сообщений</div></div>
+  <div class="card"><div class="big">{{ overview.total_users }}</div><div>пользователей</div></div>
+  <div class="card"><div class="big">{{ overview.total_media }}</div><div>медиа-файлов</div></div>
+  <div class="card"><div class="big">{{ overview.total_links }}</div><div>ссылок</div></div>
+  <div class="card"><div class="big">{{ overview.total_corrections }}</div><div>исправлений</div></div>
+</div>
+
+<h2>Сообщения за 30 дней</h2>
+<canvas id="chart" height="180"></canvas>
+<script>
+window.__chartData = [
+  {% for r in messages_per_day %}
+  { day: "{{ r.day }}", count: {{ r.c }} }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+</script>
+
+<div class="two-col">
+  <section>
+    <h2>Топ-10 авторов</h2>
+    <table>
+      <thead><tr><th>Имя</th><th>Сообщений</th></tr></thead>
+      <tbody>
+        {% for u in top_users %}
+        <tr>
+          <td><a href="/?user_id={{ u.user_id }}">{{ u.first_name or '—' }}{% if u.username %} <span class="muted">@{{ u.username }}</span>{% endif %}</a></td>
+          <td>{{ u.message_count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Типы сообщений</h2>
+    <table>
+      <thead><tr><th>Тип</th><th>Кол-во</th></tr></thead>
+      <tbody>
+        {% for t in message_types %}
+        <tr><td>{{ t.message_type }}</td><td>{{ t.c }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Сообщения — Family Chat{% endblock %}
+{% block content %}
+
+<h1>Сообщения <small class="muted">({{ total }})</small></h1>
+
+<form class="filters" method="get">
+  <input type="search" name="q" placeholder="🔍 Поиск по тексту…" value="{{ filters.q or '' }}">
+
+  <select name="chat_id">
+    <option value="">— все чаты —</option>
+    {% for c in chats %}
+      <option value="{{ c.chat_id }}" {% if filters.chat_id == c.chat_id %}selected{% endif %}>
+        {{ c.chat_title or c.chat_id }} ({{ c.message_count }})
+      </option>
+    {% endfor %}
+  </select>
+
+  <select name="message_type">
+    <option value="">— все типы —</option>
+    {% for t in message_types %}
+      <option value="{{ t.message_type }}" {% if filters.message_type == t.message_type %}selected{% endif %}>
+        {{ t.message_type }} ({{ t.c }})
+      </option>
+    {% endfor %}
+  </select>
+
+  <input type="date" name="date_from" value="{{ filters.date_from or '' }}">
+  <input type="date" name="date_to" value="{{ filters.date_to or '' }}">
+
+  {% if filters.user_id %}
+    <input type="hidden" name="user_id" value="{{ filters.user_id }}">
+  {% endif %}
+
+  <button type="submit">Применить</button>
+  <a href="/" class="btn-link">Сброс</a>
+</form>
+
+<table class="messages">
+  <thead>
+    <tr>
+      <th>Когда</th>
+      <th>Кто</th>
+      <th>Чат</th>
+      <th>Тип</th>
+      <th>Текст</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in messages %}
+      <tr>
+        <td class="nowrap">{{ m.created_at.strftime('%Y-%m-%d %H:%M') if m.created_at else '' }}</td>
+        <td>
+          <a href="/?user_id={{ m.user_id }}">
+            {{ m.display_first_name or '—' }}
+            {% if m.display_username %}<span class="muted">@{{ m.display_username }}</span>{% endif %}
+          </a>
+        </td>
+        <td class="muted">{{ m.chat_title or m.chat_id }}</td>
+        <td><span class="badge type-{{ m.message_type }}">{{ m.message_type }}</span></td>
+        <td class="text-cell">{{ (m.text or '')[:200] }}{% if (m.text or '')|length > 200 %}…{% endif %}</td>
+        <td><a href="/message/{{ m.message_id }}">→</a></td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if total_pages > 1 %}
+<nav class="pagination">
+  {% if page > 1 %}
+    <a href="?{% for k,v in filters.items() %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page-1 }}">← Назад</a>
+  {% endif %}
+  <span>Стр. {{ page }} / {{ total_pages }}</span>
+  {% if page < total_pages %}
+    <a href="?{% for k,v in filters.items() %}{% if v %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page+1 }}">Вперёд →</a>
+  {% endif %}
+</nav>
+{% endif %}
+
+{% endblock %}

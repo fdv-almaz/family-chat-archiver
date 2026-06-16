@@ -24,6 +24,14 @@ family-chat-archiver/
 │   ├── .env.example        # Шаблон конфига
 │   └── CLAUDE.md           # Документация
 │
+├── web/             # Веб-интерфейс (FastAPI): просмотр, поиск, медиа, статистика
+│   ├── app.py
+│   ├── db.py
+│   ├── telegram.py
+│   ├── templates/
+│   ├── static/
+│   └── CLAUDE.md
+│
 ├── rust/            # Rust реализация (для production)
 │   ├── src/
 │   │   ├── main.rs         # Entry point
@@ -71,6 +79,21 @@ cp .env.example .env
 # Запуск бота (таблицы создаются автоматически)
 python bot.py
 ```
+
+### Веб-интерфейс (просмотр, поиск, медиа, статистика)
+
+```bash
+cd web
+
+pip install -r requirements.txt
+cp .env.example .env
+# Отредактировать MYSQL_*, TELEGRAM_BOT_TOKEN (нужен для скачивания медиа)
+
+python app.py
+# Откроется на http://127.0.0.1:8000
+```
+
+Веб НЕ конфликтует с ботом (не потребляет updates), может работать одновременно с Python/Rust версиями. Использует ту же MySQL.
 
 ### Rust версия
 
