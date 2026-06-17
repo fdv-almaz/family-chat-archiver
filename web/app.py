@@ -139,10 +139,10 @@ def stats(request: Request):
 
 @app.get("/corrections", response_class=HTMLResponse)
 def corrections(request: Request, page: int = Query(1, ge=1)):
-    offset = (page - 1) * PAGE_SIZE
+    offset = (page - 1) * DEFAULT_PAGE_SIZE
     return templates.TemplateResponse("corrections.html", {
         "request": request,
-        "corrections": db.list_corrections(limit=PAGE_SIZE, offset=offset),
+        "corrections": db.list_corrections(limit=DEFAULT_PAGE_SIZE, offset=offset),
         "page": page,
     })
 
