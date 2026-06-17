@@ -4,6 +4,33 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.9.1] — 2026-06-17
+
+Security-релиз. Внутренний security review закрыл ряд рисков в веб-интерфейсе.
+
+### Безопасность
+- **Web/XSS:** принудительно включён Jinja2 autoescape — пользовательский
+  текст экранируется во всех шаблонах.
+- **Web/CSRF:** добавлен same-origin guard middleware для POST/DELETE
+  (`/message/{id}/delete`, `/restore`, `/hard-delete`). Дополнительные
+  разрешённые источники — через `ALLOWED_ORIGINS`.
+- **Web/Path traversal:** `/media/{id}` теперь проверяет `local_path`
+  на принадлежность whitelist (`ALLOWED_MEDIA_DIRS` — по умолчанию
+  `web/media_cache`, `python/storage`, `rust/storage`). Любой путь
+  вне списка → 403.
+- **Web/DoS:** ограничение длины параметра `q` (поиск) — 200 символов.
+- **Bot/Logs:** убран лог `MYSQL_USER@HOST/DB` — оставлен только хост:порт.
+
+### Исправлено
+- `/corrections` — `Internal Server Error` из-за необъявленной
+  `PAGE_SIZE` (использовалась как константа модуля). Заменено на
+  `DEFAULT_PAGE_SIZE`.
+
+### Документация
+- README и `web/CLAUDE.md` дополнены разделом «Безопасность» с описанием,
+  что закрыто в коде и что обязан обеспечить оператор (HTTPS, auth,
+  права на `logs/`, `.env`).
+
 ## [0.9.0] — 2026-06-16
 
 Первый функциональный релиз. Все основные сценарии работают на обеих

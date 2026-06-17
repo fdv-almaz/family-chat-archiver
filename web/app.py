@@ -16,11 +16,35 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Family Chat Archiver — Web", version=config.VERSION)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+# Defence-in-depth: force HTML autoescape so user-controlled content
+# (message text, user names, chat titles) cannot inject script tags.
+templates.env.autoescape = True
 
 # Make VERSION available to all templates
 @app.middleware("http")
 async def add_version_to_request(request, call_next):
     request.state.version = config.VERSION
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def same_origin_for_unsafe_methods(request: Request, call_next):
+    """Same-origin guard for state-changing requests (CSRF defence).
+
+    The UI has no auth yet, but if it's ever put behind one, browser-issued
+    POSTs from another origin must be rejected. Allowed Origin/Referer hosts
+    are: the Host header itself, plus optional ALLOWED_ORIGINS env list.
+    """
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        host = request.headers.get("host", "")
+        origin = request.headers.get("origin") or request.headers.get("referer") or ""
+        if origin:
+            from urllib.parse import urlparse
+            netloc = urlparse(origin).netloc
+            allowed = {host, *config.ALLOWED_ORIGINS}
+            if netloc not in allowed:
+                return JSONResponse({"detail": "Cross-origin request blocked"},
+                                    status_code=403)
     return await call_next(request)
 
 
@@ -48,7 +72,7 @@ def index(
     message_type: str | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
-    q: str | None = Query(None),
+    q: str | None = Query(None, max_length=200),
     page: int = Query(1, ge=1),
     page_size: int = Query(DEFAULT_PAGE_SIZE),
 ):
@@ -155,11 +179,22 @@ async def media_file(media_id: int):
     if not media:
         raise HTTPException(404, "Media not found")
 
-    # 1. Bot-saved local file (preferred, no Telegram needed)
+    # 1. Bot-saved local file (preferred, no Telegram needed).
+    # Validate the path is inside an allowed directory — defends against
+    # path traversal if media.local_path is ever tampered with in the DB.
     local_path = media.get("local_path")
-    if local_path and os.path.exists(local_path):
-        mime = media.get("mime_type") or tg.mime_from_ext(local_path)
-        return FileResponse(local_path, media_type=mime)
+    if local_path:
+        abs_local = os.path.abspath(local_path)
+        if not any(
+            abs_local == d or abs_local.startswith(d + os.sep)
+            for d in config.ALLOWED_MEDIA_DIRS
+        ):
+            logger.warning("Refusing to serve media %s: path %s outside ALLOWED_MEDIA_DIRS",
+                           media_id, abs_local)
+            raise HTTPException(403, "Media path not allowed")
+        if os.path.exists(abs_local):
+            mime = media.get("mime_type") or tg.mime_from_ext(abs_local)
+            return FileResponse(abs_local, media_type=mime)
 
     # 2. Fallback: download from Telegram (and cache in web/media_cache)
     file_id = media.get("file_id")

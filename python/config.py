@@ -75,4 +75,4 @@ if not TELEGRAM_BOT_TOKEN:
 
 logger.info(f'Family Chat Archiver v{VERSION}')
 logger.info(f'Logging to {LOG_FILE} (retention: {LOG_RETENTION_DAYS} days, console: {LOG_TO_CONSOLE})')
-logger.info(f'Config loaded: DB={MYSQL_USER}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}')
+logger.info(f'Config loaded: DB host={MYSQL_HOST}:{MYSQL_PORT}')
