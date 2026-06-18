@@ -4,6 +4,23 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.9.5] — 2026-06-18
+
+### Исправлено
+- **Медиа/пути:** относительный `MEDIA_STORAGE_DIR` (дефолт `storage`) теперь
+  привязывается к каталогу модуля/крейта, а не к рабочему каталогу процесса.
+  Раньше при запуске Rust-бота из `target/release/` файлы складывались в
+  `rust/target/release/storage`, и веб отдавал `403 Media path not allowed`
+  (путь вне `ALLOWED_MEDIA_DIRS`). Теперь Python всегда пишет в `python/storage`,
+  Rust — в `rust/storage`, независимо от способа запуска.
+  - Python: путь резолвится относительно `python/config.py` (`__file__`).
+  - Rust: относительный путь резолвится относительно `CARGO_MANIFEST_DIR`
+    (фиксируется при сборке).
+
+### Документация
+- `.env.example` (Python и Rust) поясняют привязку относительного
+  `MEDIA_STORAGE_DIR` и рекомендацию держать его внутри `ALLOWED_MEDIA_DIRS`.
+
 ## [0.9.4] — 2026-06-18
 
 ### Изменено

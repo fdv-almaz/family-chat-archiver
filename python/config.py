@@ -29,8 +29,13 @@ SPELLING_VISIBILITY = os.getenv('SPELLING_VISIBILITY', 'public').lower()
 if SPELLING_VISIBILITY not in ('public', 'private', 'off'):
     SPELLING_VISIBILITY = 'public'
 
-# Where to store downloaded media files (Telegram limit is ~20 MB per download via Bot API)
+# Where to store downloaded media files (Telegram limit is ~20 MB per download via Bot API).
+# A relative path is anchored to this module's directory (python/), NOT the current
+# working directory — so files always land in python/storage regardless of how the bot
+# is launched (cwd-independent; keeps local_path matching the web whitelist).
 MEDIA_STORAGE_DIR = os.getenv('MEDIA_STORAGE_DIR', 'storage')
+if not os.path.isabs(MEDIA_STORAGE_DIR):
+    MEDIA_STORAGE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), MEDIA_STORAGE_DIR))
 os.makedirs(MEDIA_STORAGE_DIR, exist_ok=True)
 # Skip downloading files larger than this (bytes). Telegram Bot API hard limit is 20 MB.
 MEDIA_MAX_DOWNLOAD_SIZE = int(os.getenv('MEDIA_MAX_DOWNLOAD_SIZE', str(20 * 1024 * 1024)))

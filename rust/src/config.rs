@@ -61,11 +61,28 @@ impl Config {
             log_dir: env::var("LOG_DIR").unwrap_or_else(|_| "logs".to_string()),
             log_file_prefix: env::var("LOG_FILE_PREFIX").unwrap_or_else(|_| "bot.log".to_string()),
             log_to_console,
-            media_storage_dir: env::var("MEDIA_STORAGE_DIR").unwrap_or_else(|_| "storage".to_string()),
+            media_storage_dir: Self::resolve_storage_dir(),
             media_max_download_size: env::var("MEDIA_MAX_DOWNLOAD_SIZE")
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(20 * 1024 * 1024),
         })
+    }
+
+    /// Resolve the media storage directory. A relative `MEDIA_STORAGE_DIR`
+    /// (the default `storage`) is anchored to the crate root captured at build
+    /// time (`CARGO_MANIFEST_DIR` = `rust/`), NOT the current working directory.
+    /// This keeps files in `rust/storage` no matter where the binary is launched
+    /// from (e.g. `target/release`), so `local_path` stays inside the web whitelist.
+    fn resolve_storage_dir() -> String {
+        let dir = env::var("MEDIA_STORAGE_DIR").unwrap_or_else(|_| "storage".to_string());
+        if std::path::Path::new(&dir).is_absolute() {
+            dir
+        } else {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(dir)
+                .to_string_lossy()
+                .into_owned()
+        }
     }
 }
