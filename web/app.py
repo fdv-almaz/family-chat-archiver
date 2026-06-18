@@ -223,4 +223,13 @@ def api_stats_per_day(days: int = 30):
 
 
 if __name__ == "__main__":
+    logger.info("Family Chat Archiver — Web v%s", config.VERSION)
+    logger.info("Binding to http://%s:%s", config.WEB_HOST, config.WEB_PORT)
+    # The UI has no built-in auth. Warn loudly if it's exposed beyond loopback.
+    if config.WEB_HOST not in ("127.0.0.1", "localhost", "::1"):
+        logger.warning(
+            "WEB_HOST=%s is not loopback — the interface has NO authentication. "
+            "Put it behind a reverse-proxy (nginx) with auth + HTTPS, or restrict "
+            "access at the firewall level.", config.WEB_HOST
+        )
     uvicorn.run(app, host=config.WEB_HOST, port=config.WEB_PORT)
