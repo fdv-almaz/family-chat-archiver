@@ -4,6 +4,13 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.9.6] — 2026-06-18
+
+### Добавлено
+- **Web:** favicon (inline SVG-эмодзи 📚 через data-URI в `<link rel="icon">`).
+  Браузер больше не запрашивает `/favicon.ico` — в логах пропали `404 Not Found`
+  на этот путь. Бинарный файл и отдельный маршрут не нужны.
+
 ## [0.9.5] — 2026-06-18
 
 ### Исправлено

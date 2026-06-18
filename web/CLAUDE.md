@@ -12,6 +12,7 @@ web/
 ├── telegram.py       # скачивание медиа из Telegram с кешированием
 ├── templates/        # Jinja2: index, message, users, stats, corrections
 ├── static/           # style.css, app.js (бар-чарт без зависимостей)
+│                      # favicon — inline SVG-эмодзи в base.html, файла нет
 ├── media_cache/      # локальный кеш скачанных файлов
 ├── requirements.txt
 ├── .env.example
