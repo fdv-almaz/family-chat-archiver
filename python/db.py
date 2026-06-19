@@ -187,6 +187,20 @@ def create_tables():
             except Error:
                 pass
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_tips (
+                tip_id INT AUTO_INCREMENT PRIMARY KEY,
+                chat_id BIGINT,
+                model VARCHAR(64),
+                prompt LONGTEXT,
+                response LONGTEXT,
+                sent_to_chat BOOLEAN DEFAULT FALSE,
+                error LONGTEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_chat_date (chat_id, created_at)
+            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+        """)
+
         conn.commit()
         logger.info('All tables created/verified successfully')
     except Error as e:
@@ -318,6 +332,54 @@ def insert_spelling_correction(message_id, original_text, corrected_text, errors
         conn.commit()
     except Error as e:
         logger.error(f'Failed to insert spelling correction for message {message_id}: {e}')
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_most_active_chat_id():
+    """Return the chat_id of the most active non-private chat, or None.
+
+    Used as a fallback when TIP_CHAT_ID is not configured — picks the group
+    chat with the most archived messages.
+    """
+    db = DBPool()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT chat_id, COUNT(*) AS cnt
+            FROM messages
+            WHERE chat_id IS NOT NULL
+              AND (chat_type IS NULL OR chat_type <> 'private')
+            GROUP BY chat_id
+            ORDER BY cnt DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        return row[0] if row else None
+    except Error as e:
+        logger.error(f'Failed to detect most active chat: {e}')
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def insert_daily_tip(chat_id, model, prompt, response, sent_to_chat, error=None):
+    """Persist a daily-tip request/response pair (and its delivery status)."""
+    db = DBPool()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            INSERT INTO daily_tips
+            (chat_id, model, prompt, response, sent_to_chat, error)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (chat_id, model, prompt, response, sent_to_chat, error))
+        conn.commit()
+    except Error as e:
+        logger.error(f'Failed to insert daily tip: {e}')
         raise
     finally:
         cursor.close()

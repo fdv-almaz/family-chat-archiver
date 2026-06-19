@@ -90,3 +90,17 @@ CREATE TABLE IF NOT EXISTS service_events (
     INDEX idx_chat_date (chat_id, created_at),
     INDEX idx_event_type (event_type)
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Совет дня: ежедневный «совет дня» от модели Claude (рассылается по крону в 6:00).
+-- Сохраняются и запрос (prompt), и ответ (response), и статус отправки в чат.
+CREATE TABLE IF NOT EXISTS daily_tips (
+    tip_id INT AUTO_INCREMENT PRIMARY KEY,
+    chat_id BIGINT,                       -- чат, куда отправлен совет
+    model VARCHAR(64),                    -- использованная модель Claude
+    prompt LONGTEXT,                      -- отправленный запрос (system + user)
+    response LONGTEXT,                    -- ответ модели (текст совета); NULL при ошибке
+    sent_to_chat BOOLEAN DEFAULT FALSE,   -- удалось ли отправить в Telegram
+    error LONGTEXT,                       -- текст ошибки, если совет не сгенерирован/не отправлен
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_chat_date (chat_id, created_at)
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

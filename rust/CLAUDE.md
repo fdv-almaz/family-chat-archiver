@@ -5,8 +5,9 @@
 ```
 rust/
 ├── src/
-│   ├── main.rs              # Entry point, dispatcher, handlers
+│   ├── main.rs              # Entry point, dispatcher, handlers, запуск планировщика
 │   ├── config.rs            # Config + SpellingVisibility enum
+│   ├── daily_tip.rs         # «Совет дня»: планировщик (tokio) + генерация через Claude API
 │   ├── error.rs             # Error типы
 │   ├── media_storage.rs     # Скачивание Telegram-файлов в локальное хранилище
 │   ├── db/
@@ -44,6 +45,15 @@ cargo clippy             # Линтер
 - Пропускает сообщения от ботов (защита от циклов)
 - `/start`, `/help`: HTML-описание бота
 
+### daily_tip.rs
+- `spawn_scheduler(bot, db, cfg)`: `tokio::spawn` фоновой задачи, которая спит до `TIP_HOUR:TIP_MINUTE` и шлёт совет; вызывается из `main()` (передаётся `bot.clone()`). Без `ANTHROPIC_API_KEY` тихо выходит (фича выключена)
+- `run_once(bot, db, cfg, chat_override)`: генерирует совет через Claude Messages API (`reqwest`), шлёт в чат (обычный текст), сохраняет запрос+ответ в `daily_tips`. `chat_override` переопределяет чат (команда `/check_tip`)
+- Команда `/check_tip` (`/tip`) обрабатывается в `main.rs::handle_message` — ручной запуск в текущий чат
+- `generate_tip()`: POST к `api.anthropic.com/v1/messages` с заголовками `x-api-key` / `anthropic-version`
+- `seconds_until()`: расчёт времени до ближайшего срабатывания (локальное время, `chrono`)
+- Чат: `tip_chat_id` или `db.get_most_active_chat_id()` (самый активный групповой чат)
+- `SYSTEM_PROMPT` учитывает, что в чате есть и дети, и взрослые
+
 ### db/pool.rs
 - `DbPool`: `Arc<mysql::Pool>` для shared use
 - `create_tables()`: CREATE IF NOT EXISTS + список идемпотентных `ALTER TABLE` для миграций
@@ -74,6 +84,7 @@ cargo clippy             # Линтер
 - `regex` + `lazy_static` — извлечение URL
 - `log` + `env_logger` — логирование
 - `dotenv` — `.env` файлы
+- `chrono` — расчёт времени срабатывания планировщика совета дня
 
 ## Переменные окружения (.env)
 
@@ -90,6 +101,13 @@ SPELLING_VISIBILITY=public      # public | private | off
 
 MEDIA_STORAGE_DIR=storage       # папка для скачанных медиа
 MEDIA_MAX_DOWNLOAD_SIZE=20971520  # пропускать файлы больше N байт
+
+# Совет дня (включается заданием ANTHROPIC_API_KEY)
+ANTHROPIC_API_KEY=              # ключ Anthropic API
+ANTHROPIC_MODEL=claude-opus-4-8  # модель Claude
+TIP_CHAT_ID=                   # чат рассылки; пусто → самый активный групповой чат из БД
+TIP_HOUR=6                     # время рассылки (локальное)
+TIP_MINUTE=0
 ```
 
 ## Замечания

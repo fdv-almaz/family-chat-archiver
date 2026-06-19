@@ -11,6 +11,7 @@ import config
 from db import DBPool, create_tables, insert_or_update_user, insert_message, insert_media, insert_link, insert_spelling_correction, insert_service_event, update_media_local_path
 from spelling import check_spelling, format_correction_message, format_chat_message
 from media_storage import download_and_save
+import daily_tip
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,10 @@ START_MESSAGE = f"""
 🗂 Сами файлы — на диске сервера в локальном хранилище (бот скачивает их сразу при получении, до 20 МБ — лимит Bot API).
 🌐 Веб-интерфейс для просмотра, поиска, прослушивания и управления архивом — отдельный модуль (FastAPI), работает поверх той же базы.
 
-<i>Бот работает в фоновом режиме и не требует команд.</i>
+<b>Совет дня:</b>
+🌅 Каждое утро бот присылает короткий «совет дня» от модели Claude (с учётом того, что в чате есть и дети, и взрослые). Команда /check_tip — прислать совет прямо сейчас.
+
+<i>В остальном бот работает в фоновом режиме и не требует команд.</i>
 """
 
 @bot.message_handler(commands=['start', 'help'])
@@ -131,6 +135,21 @@ def handle_start(message: types.Message):
         logger.debug(f'Start command handled for user {message.from_user.id}')
     except Exception as e:
         logger.error(f'Error handling start command: {e}')
+
+@bot.message_handler(commands=['check_tip', 'tip'])
+def handle_check_tip(message: types.Message):
+    """Ручной запуск совета дня: генерирует и шлёт совет в текущий чат."""
+    try:
+        if message.from_user and message.from_user.is_bot:
+            return
+        if not config.ANTHROPIC_API_KEY:
+            safe_send(bot.reply_to, message, 'Совет дня не настроен: не задан ANTHROPIC_API_KEY.')
+            return
+        ok = daily_tip.run_once(bot, chat_id=message.chat.id)
+        if not ok:
+            safe_send(bot.reply_to, message, 'Не удалось сгенерировать совет дня (см. логи).')
+    except Exception as e:
+        logger.error(f'Error handling /check_tip: {e}')
 
 def signal_handler(signum, frame):
     global running
@@ -427,6 +446,9 @@ def main():
         # Initialize database
         create_tables()
         logger.info('Database initialized')
+
+        # Запуск фонового планировщика «совета дня» (если задан ANTHROPIC_API_KEY)
+        daily_tip.start_scheduler(bot)
 
         # infinity_polling has built-in retry and won't raise on network errors
         # restart_on_change=False prevents auto-restart on code changes

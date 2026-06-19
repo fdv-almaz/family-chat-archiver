@@ -29,6 +29,18 @@ SPELLING_VISIBILITY = os.getenv('SPELLING_VISIBILITY', 'public').lower()
 if SPELLING_VISIBILITY not in ('public', 'private', 'off'):
     SPELLING_VISIBILITY = 'public'
 
+# --- Совет дня (cron в 6:00, см. daily_tip.py) ---
+# Ключ Anthropic API нужен только скрипту daily_tip.py (не самому боту).
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
+# Модель Claude для совета дня. По умолчанию — актуальная Opus.
+ANTHROPIC_MODEL = os.getenv('ANTHROPIC_MODEL', 'claude-opus-4-8')
+# Чат для рассылки совета. Если не задан — берётся самый активный групповой чат из БД.
+_TIP_CHAT_ID_RAW = os.getenv('TIP_CHAT_ID')
+TIP_CHAT_ID = int(_TIP_CHAT_ID_RAW) if _TIP_CHAT_ID_RAW else None
+# Время рассылки (локальное), по умолчанию 06:00.
+TIP_HOUR = int(os.getenv('TIP_HOUR', '6'))
+TIP_MINUTE = int(os.getenv('TIP_MINUTE', '0'))
+
 # Where to store downloaded media files (Telegram limit is ~20 MB per download via Bot API).
 # A relative path is anchored to this module's directory (python/), NOT the current
 # working directory — so files always land in python/storage regardless of how the bot

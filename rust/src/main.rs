@@ -1,4 +1,5 @@
 mod config;
+mod daily_tip;
 mod db;
 mod error;
 mod media_storage;
@@ -33,7 +34,11 @@ const START_MESSAGE: &str = concat!(
     "(бот скачивает их сразу при получении, до 20 МБ — лимит Bot API).\n",
     "🌐 Веб-интерфейс для просмотра, поиска, прослушивания и управления ",
     "архивом — отдельный модуль (FastAPI), работает поверх той же базы.\n\n",
-    "<i>Бот работает в фоновом режиме и не требует команд.</i>"
+    "<b>Совет дня:</b>\n",
+    "🌅 Каждое утро бот присылает короткий «совет дня» от модели Claude ",
+    "(с учётом того, что в чате есть и дети, и взрослые). ",
+    "Команда /check_tip — прислать совет прямо сейчас.\n\n",
+    "<i>В остальном бот работает в фоновом режиме и не требует команд.</i>"
 );
 
 fn chat_title(chat: &Chat) -> Option<String> {
@@ -116,6 +121,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Bot started, listening for messages... (spelling: {:?})", config.spelling_visibility);
 
+    // Фоновый планировщик «совета дня» (ежедневно в TIP_HOUR:TIP_MINUTE).
+    daily_tip::spawn_scheduler(bot.clone(), Arc::clone(&db_pool), Arc::clone(&cfg));
+
     let handler = Update::filter_message()
         .endpoint({
             let db = Arc::clone(&db_pool);
@@ -165,11 +173,32 @@ async fn handle_message(
     }
 
     if let Some(text) = message.text() {
-        if text == "/start" || text == "/help" {
+        // Команда без возможного упоминания бота: "/check_tip@MyBot" → "/check_tip"
+        let cmd = text.split_whitespace().next().unwrap_or("")
+            .split('@').next().unwrap_or("");
+
+        if cmd == "/start" || cmd == "/help" {
             let _ = bot
                 .send_message(message.chat.id, START_MESSAGE)
                 .parse_mode(teloxide::types::ParseMode::Html)
                 .await;
+            return Ok(());
+        }
+
+        // Ручной запуск совета дня: генерируем и шлём в текущий чат.
+        if cmd == "/check_tip" || cmd == "/tip" {
+            if cfg.anthropic_api_key.is_none() {
+                let _ = bot
+                    .send_message(message.chat.id, "Совет дня не настроен: не задан ANTHROPIC_API_KEY.")
+                    .await;
+                return Ok(());
+            }
+            if let Err(e) = daily_tip::run_once(&bot, db.as_ref(), &cfg, Some(message.chat.id.0)).await {
+                error!("/check_tip: {}", e);
+                let _ = bot
+                    .send_message(message.chat.id, "Не удалось сгенерировать совет дня (см. логи).")
+                    .await;
+            }
             return Ok(());
         }
     }

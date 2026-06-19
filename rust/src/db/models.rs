@@ -158,6 +158,47 @@ impl DbPool {
         Ok(())
     }
 
+    /// chat_id самого активного непубличного (группового) чата, или None.
+    /// Fallback, когда TIP_CHAT_ID не задан — выбирает чат с наибольшим числом сообщений.
+    pub async fn get_most_active_chat_id(&self) -> Result<Option<i64>> {
+        let mut conn = self.get_connection()?;
+        let row: Option<i64> = conn.query_first(
+            "SELECT chat_id FROM messages
+             WHERE chat_id IS NOT NULL
+               AND (chat_type IS NULL OR chat_type <> 'private')
+             GROUP BY chat_id
+             ORDER BY COUNT(*) DESC
+             LIMIT 1",
+        )
+        .map_err(|e| Error::Database(format!("Failed to detect most active chat: {}", e)))?;
+        Ok(row)
+    }
+
+    /// Сохранить запрос/ответ совета дня и статус отправки.
+    pub async fn insert_daily_tip(
+        &self,
+        chat_id: i64,
+        model: &str,
+        prompt: &str,
+        response: Option<&str>,
+        sent_to_chat: bool,
+        error: Option<&str>,
+    ) -> Result<()> {
+        let mut conn = self.get_connection()?;
+
+        let query = "INSERT INTO daily_tips
+                    (chat_id, model, prompt, response, sent_to_chat, error)
+                    VALUES (?, ?, ?, ?, ?, ?)";
+
+        conn.exec_drop(query, (chat_id, model, prompt, response, sent_to_chat, error))
+            .map_err(|e| {
+                error!("Failed to insert daily tip: {}", e);
+                Error::Database(format!("Failed to insert daily tip: {}", e))
+            })?;
+
+        Ok(())
+    }
+
     pub async fn insert_service_event(
         &self,
         chat_id: i64,

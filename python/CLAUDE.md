@@ -4,10 +4,11 @@
 
 ```
 python/
-├── bot.py              # Основной файл: handlers, polling, отправка
+├── bot.py              # Основной файл: handlers, polling, отправка, запуск планировщика
 ├── config.py           # Конфигурация (env переменные)
 ├── db.py               # MySQL pool, миграции, CRUD-функции
 ├── spelling.py         # YandexSpeller API + форматирование подсказок
+├── daily_tip.py        # «Совет дня»: фоновый планировщик + генерация через Claude API
 ├── media_storage.py    # Скачивание Telegram-файлов в локальное хранилище
 ├── storage/            # Скачанные файлы (file_unique_id + расширение)
 ├── logs/               # Файловые логи с ежедневной ротацией
@@ -53,6 +54,14 @@ mysql -u root -p < ../schema.sql
 - Пропускает файлы больше `MEDIA_MAX_DOWNLOAD_SIZE` (по умолчанию 20 МБ — лимит Bot API)
 - Вызывается из `bot.py::save_media_with_file()` сразу после `insert_media()`; путь к локальному файлу сохраняется в `media.local_path`
 
+### daily_tip.py
+- `start_scheduler(bot)` — запускает демон-поток, который спит до `TIP_HOUR:TIP_MINUTE` и шлёт совет; вызывается из `bot.py::main()`. Без `ANTHROPIC_API_KEY` тихо выходит (фича выключена)
+- `run_once(bot, chat_id=None)` — генерирует совет через `anthropic` SDK (`config.ANTHROPIC_MODEL`), шлёт в чат (текст экранируется, т.к. бот в режиме HTML), сохраняет запрос+ответ в `daily_tips`. `chat_id` переопределяет чат (для команды `/check_tip`)
+- `resolve_chat_id()` — `TIP_CHAT_ID` или самый активный групповой чат из БД (`db.get_most_active_chat_id`)
+- `SYSTEM_PROMPT` — учитывает, что в чате есть и дети, и взрослые (безопасные темы)
+- Команда `/check_tip` (`/tip`) в `bot.py::handle_check_tip` — ручной запуск в текущий чат
+- `python daily_tip.py` — ручной разовый запуск из CLI (без ожидания расписания)
+
 ### spelling.py
 - `check_spelling()` — POST к `speller.yandex.net/services/spellservice.json/checkText` с retry и backoff
 - Пропускает короткий текст, команды (`/...`), чисто служебные символы
@@ -65,6 +74,7 @@ mysql -u root -p < ../schema.sql
 - `mysql-connector-python` — драйвер MySQL
 - `python-dotenv` — загрузка .env
 - `requests` — HTTP запросы к YandexSpeller
+- `anthropic` — официальный SDK Claude API (совет дня)
 
 ## Особенности реализации на Python
 
@@ -94,4 +104,11 @@ SPELLING_VISIBILITY=public         # public | private | off
 
 MEDIA_STORAGE_DIR=storage          # папка для скачанных медиа-файлов
 MEDIA_MAX_DOWNLOAD_SIZE=20971520   # пропускать файлы больше N байт (Bot API лимит 20 МБ)
+
+# Совет дня (включается заданием ANTHROPIC_API_KEY)
+ANTHROPIC_API_KEY=                 # ключ Anthropic API
+ANTHROPIC_MODEL=claude-opus-4-8    # модель Claude
+TIP_CHAT_ID=                       # чат рассылки; пусто → самый активный групповой чат из БД
+TIP_HOUR=6                         # время рассылки (локальное)
+TIP_MINUTE=0
 ```

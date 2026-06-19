@@ -111,6 +111,18 @@ impl DbPool {
                 data JSON,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
+
+            "CREATE TABLE IF NOT EXISTS daily_tips (
+                tip_id INT AUTO_INCREMENT PRIMARY KEY,
+                chat_id BIGINT,
+                model VARCHAR(64),
+                prompt LONGTEXT,
+                response LONGTEXT,
+                sent_to_chat BOOLEAN DEFAULT FALSE,
+                error LONGTEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_chat_date (chat_id, created_at)
+            ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci",
         ];
 
         for query in queries {

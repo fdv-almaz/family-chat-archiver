@@ -11,6 +11,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. Сохранение информации об авторах и служебных событиях
 3. Проверка правописания русскоязычных текстов через YandexSpeller API
 4. Отправка исправлений в чат и сохранение в отдельную таблицу БД
+5. «Совет дня»: фоновый планировщик внутри бота ежедневно в `TIP_HOUR:TIP_MINUTE`
+   (по умолчанию 6:00) запрашивает короткий совет у последней модели Claude
+   (с учётом того, что в чате есть и дети, и взрослые) и шлёт его в чат; запрос и
+   ответ сохраняются в таблицу `daily_tips`. Фича включается заданием `ANTHROPIC_API_KEY`.
+   Команда `/check_tip` (или `/tip`) — ручной запуск: сразу генерирует совет и шлёт
+   его в текущий чат (для проверки, без ожидания расписания).
 
 ## Структура
 
@@ -63,6 +69,7 @@ Telegram API
 - `links` — ссылки из сообщений
 - `spelling_corrections` — история орфографических ошибок
 - `service_events` — служебные события (user_joined, title_changed и т.д.)
+- `daily_tips` — история «совета дня» (запрос, ответ, модель, статус отправки)
 
 **При изменении схемы:** обновите одновременно `schema.sql`, `python/db.py::create_tables()`, `rust/src/db/pool.rs::create_tables()` и при необходимости `web/db.py::_ensure_*_column()` (включая идемпотентные `ALTER TABLE` миграции).
 
@@ -88,6 +95,13 @@ MYSQL_PASSWORD=...
 MYSQL_DATABASE=...
 LOG_LEVEL=info
 SPELLING_VISIBILITY=public   # public | private | off
+
+# Совет дня (включается заданием ANTHROPIC_API_KEY)
+ANTHROPIC_API_KEY=...
+ANTHROPIC_MODEL=claude-opus-4-8   # модель Claude для совета
+TIP_CHAT_ID=                      # чат рассылки; пусто → самый активный групповой чат из БД
+TIP_HOUR=6                        # время рассылки (локальное)
+TIP_MINUTE=0
 ```
 
 См. `.env.example` в каждой реализации.

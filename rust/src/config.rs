@@ -22,6 +22,12 @@ pub struct Config {
     pub log_to_console: bool,
     pub media_storage_dir: String,
     pub media_max_download_size: u64,
+    // --- Совет дня (фоновый планировщик внутри бота) ---
+    pub anthropic_api_key: Option<String>,
+    pub anthropic_model: String,
+    pub tip_chat_id: Option<i64>,
+    pub tip_hour: u32,
+    pub tip_minute: u32,
 }
 
 impl Config {
@@ -66,6 +72,12 @@ impl Config {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(20 * 1024 * 1024),
+            anthropic_api_key: env::var("ANTHROPIC_API_KEY").ok().filter(|s| !s.is_empty()),
+            anthropic_model: env::var("ANTHROPIC_MODEL")
+                .unwrap_or_else(|_| "claude-opus-4-8".to_string()),
+            tip_chat_id: env::var("TIP_CHAT_ID").ok().and_then(|s| s.trim().parse().ok()),
+            tip_hour: env::var("TIP_HOUR").ok().and_then(|s| s.parse().ok()).unwrap_or(6),
+            tip_minute: env::var("TIP_MINUTE").ok().and_then(|s| s.parse().ok()).unwrap_or(0),
         })
     }
 
