@@ -37,10 +37,12 @@ SYSTEM_PROMPT = (
     "- Не затрагивай темы, не подходящие детям: политику, религиозные споры, "
     "конкретные лекарства и медицинские предписания, финансовые риски и "
     "инвестиции, любой контент 18+.\n"
-    "- Не используй Markdown-разметку; эмодзи — максимум один и только если "
-    "уместно.\n"
+    "- Не используй Markdown-разметку и эмодзи.\n"
     "- Не пиши вступлений вроде «Вот совет дня» — сразу сам совет."
 )
+
+# Маркер перед текстом, чтобы в чате было понятно, что это совет дня.
+TIP_HEADER = "💡 <b>Совет дня</b>\n\n"
 
 
 def build_user_prompt() -> str:
@@ -110,7 +112,7 @@ def run_once(bot, chat_id=None) -> bool:
     sent = False
     error = None
     try:
-        bot.send_message(chat_id, html.escape(tip))
+        bot.send_message(chat_id, TIP_HEADER + html.escape(tip))
         sent = True
         logger.info(f'Совет дня отправлен в чат {chat_id}')
     except ApiException as e:

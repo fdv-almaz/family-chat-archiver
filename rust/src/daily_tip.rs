@@ -37,10 +37,12 @@ const SYSTEM_PROMPT: &str = concat!(
     "- Не затрагивай темы, не подходящие детям: политику, религиозные споры, ",
     "конкретные лекарства и медицинские предписания, финансовые риски и ",
     "инвестиции, любой контент 18+.\n",
-    "- Не используй Markdown-разметку; эмодзи — максимум один и только если ",
-    "уместно.\n",
+    "- Не используй Markdown-разметку и эмодзи.\n",
     "- Не пиши вступлений вроде «Вот совет дня» — сразу сам совет."
 );
+
+// Маркер перед текстом, чтобы в чате было понятно, что это совет дня.
+const TIP_HEADER: &str = "💡 <b>Совет дня</b>\n\n";
 
 /// Запускает фоновый планировщик. Если ключ Anthropic не задан — тихо выходит
 /// (фича выключена), бот продолжает работать как обычно.
@@ -131,8 +133,13 @@ pub async fn run_once(bot: &Bot, db: &DbPool, cfg: &Config, chat_override: Optio
         }
     };
 
-    // 2) Отправить в чат (обычный текст, без parse_mode)
-    let (sent, err) = match bot.send_message(ChatId(chat_id), tip.clone()).await {
+    // 2) Отправить в чат. Заголовок-маркер + экранированный текст (режим HTML).
+    let message_text = format!("{}{}", TIP_HEADER, teloxide::utils::html::escape(&tip));
+    let (sent, err) = match bot
+        .send_message(ChatId(chat_id), message_text)
+        .parse_mode(teloxide::types::ParseMode::Html)
+        .await
+    {
         Ok(_) => {
             info!("Совет дня отправлен в чат {}", chat_id);
             (true, None)
