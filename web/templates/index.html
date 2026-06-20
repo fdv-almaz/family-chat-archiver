@@ -74,7 +74,9 @@
         <td><span class="badge type-{{ m.message_type }}">{{ m.message_type }}</span></td>
         <td class="text-cell">
           {% if m.text %}
-            <div>{{ m.text[:200] }}{% if m.text|length > 200 %}…{% endif %}</div>
+            <div{% if m.spelling_hint %} title="Исправлено: {{ m.spelling_hint }}"{% endif %}>
+              {% if m.spelling_hint %}<span class="spell-flag" title="Исправлено: {{ m.spelling_hint }}">✏️</span>{% endif %}{{ m.text[:200] }}{% if m.text|length > 200 %}…{% endif %}
+            </div>
           {% endif %}
           {% for media in m.media_list or [] %}
             {% set src = '/media/' ~ media.media_id %}

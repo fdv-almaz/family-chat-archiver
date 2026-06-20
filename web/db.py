@@ -1,3 +1,4 @@
+import json
 import logging
 import mysql.connector
 from mysql.connector import pooling
@@ -121,7 +122,45 @@ def list_messages(chat_id=None, user_id=None, message_type=None,
         for msg in messages:
             msg['media_list'] = media_by_msg.get(msg['message_id'], [])
 
+        # Attach spelling-correction hints ("было → стало") per message
+        corr_rows = query(
+            f"SELECT message_id, errors FROM spelling_corrections "
+            f"WHERE message_id IN ({placeholders}) ORDER BY created_at",
+            msg_ids
+        )
+        hints_by_msg = {}
+        for c in corr_rows:
+            for pair in _correction_pairs(c.get('errors')):
+                pairs = hints_by_msg.setdefault(c['message_id'], [])
+                if pair not in pairs:  # dedupe, preserve order
+                    pairs.append(pair)
+        for msg in messages:
+            pairs = hints_by_msg.get(msg['message_id'])
+            msg['spelling_hint'] = '; '.join(pairs) if pairs else None
+
     return messages
+
+
+def _correction_pairs(errors):
+    """Parse a spelling_corrections.errors value into ['ашибка → ошибка', ...]."""
+    if isinstance(errors, (bytes, bytearray)):
+        errors = errors.decode('utf-8', 'replace')
+    if isinstance(errors, str):
+        try:
+            errors = json.loads(errors)
+        except (ValueError, TypeError):
+            return []
+    if not isinstance(errors, list):
+        return []
+    pairs = []
+    for e in errors:
+        if not isinstance(e, dict):
+            continue
+        original = (e.get('original') or '').strip()
+        suggested = (e.get('suggested') or '').strip()
+        if original and suggested:
+            pairs.append(f"{original} → {suggested}")
+    return pairs
 
 
 def count_messages(chat_id=None, user_id=None, message_type=None,
