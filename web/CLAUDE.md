@@ -10,7 +10,7 @@ web/
 ├── config.py         # env переменные
 ├── db.py             # SQL-запросы к MySQL (read-only + delete)
 ├── telegram.py       # скачивание медиа из Telegram с кешированием
-├── templates/        # Jinja2: index, message, users, stats, corrections
+├── templates/        # Jinja2: index, message, users, stats, corrections, tips
 ├── static/           # style.css, app.js (бар-чарт без зависимостей)
 │                      # favicon — inline SVG-эмодзи в base.html, файла нет
 ├── media_cache/      # локальный кеш скачанных файлов
@@ -61,6 +61,7 @@ python app.py
 - **`/users`** — пользователи + количество сообщений
 - **`/stats`** — карточки счётчиков, бар-чарт за 30 дней, топ-10 авторов, типы сообщений
 - **`/corrections`** — лента орфографических исправлений
+- **`/tips`** — лента «советов дня» из таблицы `daily_tips` (когда, чат, модель, текст совета, статус отправки). В общую ленту сообщений советы не попадают — бот игнорирует собственные сообщения, — поэтому для них отдельная страница
 - **`/media/{media_id}`** — стриминг файла из Telegram через локальный кеш
 
 ## Удаление сообщений (soft-delete)

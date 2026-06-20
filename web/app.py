@@ -171,6 +171,19 @@ def corrections(request: Request, page: int = Query(1, ge=1)):
     })
 
 
+@app.get("/tips", response_class=HTMLResponse)
+def tips(request: Request, page: int = Query(1, ge=1)):
+    offset = (page - 1) * DEFAULT_PAGE_SIZE
+    total = db.count_daily_tips()
+    return templates.TemplateResponse("tips.html", {
+        "request": request,
+        "tips": db.list_daily_tips(limit=DEFAULT_PAGE_SIZE, offset=offset),
+        "total": total,
+        "page": page,
+        "total_pages": (total + DEFAULT_PAGE_SIZE - 1) // DEFAULT_PAGE_SIZE,
+    })
+
+
 @app.get("/media/{media_id}")
 async def media_file(media_id: int):
     """Serve media. Priority: bot's local_path → web cache → fetch from Telegram."""

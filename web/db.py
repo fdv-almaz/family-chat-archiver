@@ -35,6 +35,24 @@ def _ensure_columns():
                 logger.info(msg)
             except mysql.connector.Error:
                 pass  # column already exists
+        # Совет дня создаётся ботом; на случай запуска веба на свежей БД — создаём здесь.
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS daily_tips (
+                    tip_id INT AUTO_INCREMENT PRIMARY KEY,
+                    chat_id BIGINT,
+                    model VARCHAR(64),
+                    prompt LONGTEXT,
+                    response LONGTEXT,
+                    sent_to_chat BOOLEAN DEFAULT FALSE,
+                    error LONGTEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_chat_date (chat_id, created_at)
+                ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+            """)
+            conn.commit()
+        except mysql.connector.Error:
+            pass
         cursor.close()
     finally:
         conn.close()
@@ -296,6 +314,21 @@ def list_corrections(limit=50, offset=0):
         ORDER BY sc.created_at DESC
         LIMIT %s OFFSET %s
     """, (limit, offset))
+
+
+def list_daily_tips(limit=50, offset=0):
+    return query("""
+        SELECT dt.*,
+               (SELECT MAX(m.chat_title) FROM messages m WHERE m.chat_id = dt.chat_id) AS chat_title
+        FROM daily_tips dt
+        ORDER BY dt.created_at DESC
+        LIMIT %s OFFSET %s
+    """, (limit, offset))
+
+
+def count_daily_tips() -> int:
+    row = query("SELECT COUNT(*) AS c FROM daily_tips", one=True)
+    return row['c'] if row else 0
 
 
 def soft_delete_message(message_id: int) -> int:
