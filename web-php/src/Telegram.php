@@ -46,6 +46,13 @@ final class Telegram
             return null;
         }
 
+        // Санитизация имени кеш-файла (defense-in-depth от path traversal,
+        // если file_unique_id окажется подменён в БД).
+        $fileUniqueId = preg_replace('/[^A-Za-z0-9_-]/', '', $fileUniqueId);
+        if ($fileUniqueId === '') {
+            return null;
+        }
+
         $cacheDir = Config::$MEDIA_CACHE_DIR;
         // Уже в кеше? (ищем по префиксу file_unique_id)
         foreach (scandir($cacheDir) ?: [] as $fname) {
@@ -68,6 +75,8 @@ final class Telegram
         if ($ext === '' && $suggestedExt !== '') {
             $ext = str_starts_with($suggestedExt, '.') ? $suggestedExt : '.' . $suggestedExt;
         }
+        // Расширение тоже из внешнего источника — оставляем только безопасные символы.
+        $ext = preg_replace('/[^A-Za-z0-9.]/', '', $ext);
 
         $cacheFile = $cacheDir . '/' . $fileUniqueId . $ext;
         $downloadUrl = self::API . '/file/bot' . Config::$TELEGRAM_BOT_TOKEN . '/' . $filePath;

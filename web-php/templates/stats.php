@@ -11,14 +11,14 @@
 </div>
 
 <h2>Сообщения за 30 дней</h2>
-<canvas id="chart" height="180"></canvas>
-<script>
-window.__chartData = [
-<?php foreach ($messages_per_day as $i => $r): ?>
-  { day: <?= json_encode((string) $r['day']) ?>, count: <?= (int) $r['c'] ?> }<?= $i < count($messages_per_day) - 1 ? ',' : '' ?>
-<?php endforeach; ?>
-];
-</script>
+<?php
+// Данные графика передаём через data-атрибут (без inline-скрипта — требование CSP).
+$chartData = array_map(
+    fn(array $r): array => ['day' => (string) $r['day'], 'count' => (int) $r['c']],
+    $messages_per_day
+);
+?>
+<canvas id="chart" height="180" data-chart="<?= e(json_encode($chartData)) ?>"></canvas>
 
 <div class="two-col">
   <section>

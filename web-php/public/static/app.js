@@ -1,9 +1,15 @@
-// Simple bar chart for stats page (no external deps)
+// Simple bar chart for stats page (no external deps).
+// Данные берём из data-атрибута канваса (CSP запрещает inline-скрипты).
 (function() {
   const canvas = document.getElementById('chart');
-  if (!canvas || !window.__chartData) return;
+  if (!canvas) return;
 
-  const data = window.__chartData;
+  let data = [];
+  try {
+    data = JSON.parse(canvas.dataset.chart || '[]');
+  } catch (e) {
+    return;
+  }
   if (!data.length) return;
 
   const ctx = canvas.getContext('2d');
@@ -46,3 +52,25 @@
     ctx.fillText(d.day.slice(5), x, pad.t + h + 18);
   });
 })();
+
+// Подтверждение для опасных форм (вместо inline onsubmit — требование CSP).
+document.addEventListener('submit', function(ev) {
+  const form = ev.target;
+  if (form.classList && form.classList.contains('js-confirm')) {
+    if (!window.confirm(form.dataset.confirm || 'Подтвердите действие')) {
+      ev.preventDefault();
+    }
+  }
+});
+
+// Ссылка «Назад» (вместо javascript:history.back() — требование CSP).
+document.addEventListener('click', function(ev) {
+  const a = ev.target.closest && ev.target.closest('a.js-back');
+  if (a) {
+    if (window.history.length > 1) {
+      ev.preventDefault();
+      window.history.back();
+    }
+    // иначе — обычный переход по href="/"
+  }
+});

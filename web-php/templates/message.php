@@ -1,6 +1,6 @@
 <?php $page_title = 'Сообщение #' . (int) $msg['message_id']; ?>
 
-<p><a href="javascript:history.back()">← Назад</a></p>
+<p><a href="/" class="js-back">← Назад</a></p>
 
 <article class="message-detail <?= $msg['deleted_at'] ? 'deleted-row' : '' ?>">
   <header>
@@ -48,7 +48,14 @@
   <?php if (!empty($msg['links'])): ?>
     <h3>Ссылки</h3>
     <ul>
-      <?php foreach ($msg['links'] as $l): ?><li><a href="<?= e($l['url']) ?>" rel="noopener" target="_blank"><?= e($l['url']) ?></a></li><?php endforeach; ?>
+      <?php foreach ($msg['links'] as $l): ?>
+        <?php $safe = preg_match('#^https?://#i', (string) $l['url']) === 1; ?>
+        <li>
+          <?php if ($safe): ?><a href="<?= e($l['url']) ?>" rel="noopener noreferrer" target="_blank"><?= e($l['url']) ?></a>
+          <?php else: ?><code><?= e($l['url']) ?></code>
+          <?php endif; ?>
+        </li>
+      <?php endforeach; ?>
     </ul>
   <?php endif; ?>
 
@@ -68,7 +75,7 @@
         <button type="submit">↩ Восстановить</button>
       </form>
       <form method="post" action="/message/<?= (int) $msg['message_id'] ?>/hard-delete"
-            onsubmit="return confirm('Удалить #<?= (int) $msg['message_id'] ?> БЕЗВОЗВРАТНО? Связанные медиа, ссылки и подсказки тоже удалятся.')">
+            class="js-confirm" data-confirm="Удалить #<?= (int) $msg['message_id'] ?> БЕЗВОЗВРАТНО? Связанные медиа, ссылки и подсказки тоже удалятся.">
         <button type="submit" class="danger">⚠ Удалить окончательно</button>
       </form>
     <?php else: ?>

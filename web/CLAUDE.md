@@ -95,7 +95,10 @@ python app.py
 **Что уже сделано в коде:**
 - ✅ **SQL injection** — все пользовательские запросы параметризованы (`%s`). DDL (`ALTER TABLE`) — только с хардкод-именами колонок.
 - ✅ **Path traversal в `/media/{id}`** — `local_path` из БД проверяется на принадлежность `ALLOWED_MEDIA_DIRS` (по умолчанию `web/media_cache`, `../python/storage`, `../rust/storage`). Любой путь вне whitelist → 403.
-- ✅ **XSS** — Jinja2 `autoescape = True` форсированно включён в `app.py`, любой текст из БД экранируется.
+- ✅ **XSS (stored)** — Jinja2 `autoescape = True` форсированно включён в `app.py`, любой текст из БД экранируется.
+- ✅ **MIME-sniffing XSS в `/media/{id}`** — ответ всегда с `X-Content-Type-Options: nosniff`; inline отдаются только `image/*`, `audio/*`, `video/*`, `application/pdf` (SVG — нет), остальное — `Content-Disposition: attachment`. Это не даёт исполнить присланный HTML/SVG в нашем origin (`_media_disposition` в `app.py`).
+- ✅ **CSP и заголовки безопасности** — middleware `security_headers` добавляет ко всем ответам строгую `Content-Security-Policy` (`default-src 'self'`, без inline-скриптов и фреймов), `X-Frame-Options: DENY` (clickjacking), `Referrer-Policy: same-origin`, `X-Content-Type-Options: nosniff`. Чтобы CSP не требовала `'unsafe-inline'`, inline-скрипт графика вынесен в `data-chart`-атрибут (читает `static/app.js`), а inline-обработчики (`onsubmit` confirm, `javascript:` ссылка «Назад») заменены на классы `js-confirm`/`js-back` с делегированием в `app.js`.
+- ✅ **Небезопасные схемы ссылок** — в карточке сообщения URL рендерится как кликабельная ссылка только при схеме `http(s)`; иначе показывается как текст (`<code>`).
 - ✅ **CSRF** — middleware `same_origin_for_unsafe_methods` блокирует POST/DELETE с чужим `Origin`/`Referer`. Дополнительные источники — через `ALLOWED_ORIGINS` в `.env`.
 - ✅ **DoS через `q`** — `Query(None, max_length=200)`.
 - ✅ **Лимит размера медиа** — бот пропускает > 20 МБ (Bot API hard limit).

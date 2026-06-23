@@ -4,6 +4,38 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.11.1] — 2026-06-23
+
+Security-релиз. Аудит обеих веб-реализаций (`web/` FastAPI и `web-php/` PHP);
+исправления применены к обеим для паритета.
+
+### Безопасность
+- **MIME-sniffing XSS в `/media/{id}`** (средняя): файлы отдавались inline с
+  Content-Type из БД без `nosniff` — присланный участником HTML/SVG мог исполниться
+  в нашем origin. Теперь на всех файлах `X-Content-Type-Options: nosniff`; inline
+  только `image/*`, `audio/*`, `video/*`, `application/pdf` (SVG исключён), остальное —
+  `Content-Disposition: attachment`.
+- **CSP и заголовки безопасности**: ко всем ответам добавлены строгая
+  `Content-Security-Policy` (`default-src 'self'`, без inline-скриптов и фреймов),
+  `X-Frame-Options: DENY` (clickjacking), `Referrer-Policy: same-origin`,
+  `X-Content-Type-Options: nosniff`. Inline-скрипт графика вынесен в `data-chart`,
+  inline-обработчики (`confirm`, ссылка «Назад») заменены на классы `js-confirm`/
+  `js-back` с делегированием в `app.js` — чтобы CSP не требовала `'unsafe-inline'`.
+- **Небезопасные схемы ссылок**: URL в карточке сообщения кликабелен только при
+  схеме `http(s)`, иначе показывается как текст.
+- **Command injection в `web-php/serve.php`**: `WEB_HOST` из `.env` экранируется
+  (`escapeshellarg`) перед запуском `php -S`.
+- **Path traversal (defense-in-depth, PHP)**: имя кеш-файла из `file_unique_id`/
+  расширения санитизируется в `Telegram.php`.
+
+### Добавлено
+- **Web-PHP:** поддержка Range-запросов в `/media` (`206 Partial Content`) — перемотка
+  аудио/видео, как в FastAPI FileResponse.
+
+### Документация
+- Разделы «Безопасность» в `README.md`, `web/CLAUDE.md`, `web-php/CLAUDE.md` обновлены
+  по итогам аудита.
+
 ## [0.11.0] — 2026-06-23
 
 ### Добавлено

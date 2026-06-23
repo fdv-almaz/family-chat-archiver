@@ -48,6 +48,33 @@ async def same_origin_for_unsafe_methods(request: Request, call_next):
     return await call_next(request)
 
 
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; img-src 'self' data:; media-src 'self'; "
+    "style-src 'self'; script-src 'self'; object-src 'none'; "
+    "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """Defence-in-depth заголовки для всех ответов (XSS-sniffing, clickjacking, CSP)."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+    return response
+
+
+# Типы, безопасные для inline-показа в браузере; остальное отдаём как вложение,
+# чтобы исключить MIME-sniffing и исполнение HTML/SVG в нашем origin.
+def _media_disposition(mime: str) -> str:
+    safe = mime.startswith(("image/", "audio/", "video/")) or mime == "application/pdf"
+    if mime == "image/svg+xml":
+        safe = False
+    return "inline" if safe else "attachment"
+
+
 templates.env.globals['VERSION'] = config.VERSION
 
 DEFAULT_PAGE_SIZE = 100
@@ -152,10 +179,12 @@ def users(request: Request):
 
 @app.get("/stats", response_class=HTMLResponse)
 def stats(request: Request):
+    mpd = db.stats_messages_per_day(30)
     return templates.TemplateResponse("stats.html", {
         "request": request,
         "overview": db.stats_overview(),
-        "messages_per_day": db.stats_messages_per_day(30),
+        "messages_per_day": mpd,
+        "chart_data": [{"day": str(r['day']), "count": r['c']} for r in mpd],
         "top_users": db.top_users(10),
         "message_types": db.list_message_types(),
     })
@@ -207,7 +236,8 @@ async def media_file(media_id: int):
             raise HTTPException(403, "Media path not allowed")
         if os.path.exists(abs_local):
             mime = media.get("mime_type") or tg.mime_from_ext(abs_local)
-            return FileResponse(abs_local, media_type=mime)
+            return FileResponse(abs_local, media_type=mime,
+                                headers={"Content-Disposition": _media_disposition(mime)})
 
     # 2. Fallback: download from Telegram (and cache in web/media_cache)
     file_id = media.get("file_id")
@@ -224,7 +254,8 @@ async def media_file(media_id: int):
         raise HTTPException(502, "Failed to fetch media from Telegram (file may have expired)")
 
     mime = media.get("mime_type") or tg.mime_from_ext(path)
-    return FileResponse(path, media_type=mime)
+    return FileResponse(path, media_type=mime,
+                        headers={"Content-Disposition": _media_disposition(mime)})
 
 
 @app.get("/api/stats/per-day")

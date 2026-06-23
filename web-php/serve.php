@@ -28,10 +28,10 @@ if (!in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
 }
 
 $docroot = __DIR__ . '/public';
+// Экранируем host (из .env) — защита от инъекции в shell-команду.
 $cmd = sprintf(
-    'php -S %s:%d -t %s %s',
-    $host,
-    $port,
+    'php -S %s -t %s %s',
+    escapeshellarg($host) . ':' . $port,
     escapeshellarg($docroot),
     escapeshellarg($docroot . '/index.php')
 );

@@ -79,14 +79,34 @@ php -S 127.0.0.1:8000 -t public public/index.php
 
 - ✅ **SQL injection** — все пользовательские параметры через PDO prepared statements
   (`?`); `LIMIT/OFFSET` — только валидированные `(int)`. DDL — хардкод-имена колонок.
-- ✅ **XSS** — весь вывод данных из БД экранируется хелпером `e()` (htmlspecialchars,
-  ENT_QUOTES, UTF-8) — аналог Jinja autoescape.
+- ✅ **XSS (stored)** — весь вывод данных из БД экранируется хелпером `e()`
+  (htmlspecialchars, ENT_QUOTES, UTF-8) — аналог Jinja autoescape.
+- ✅ **MIME-sniffing XSS в `/media/{id}`** — `X-Content-Type-Options: nosniff` на всех
+  файлах; inline только `image/*`, `audio/*`, `video/*`, `application/pdf` (SVG — нет),
+  остальное — `Content-Disposition: attachment` (`stream_file` в `public/index.php`).
+- ✅ **CSP и заголовки безопасности** — для всех ответов выставляются строгая
+  `Content-Security-Policy` (`default-src 'self'`, без inline-скриптов/фреймов),
+  `X-Frame-Options: DENY`, `Referrer-Policy: same-origin`, `X-Content-Type-Options:
+  nosniff`. Inline-скрипт графика вынесен в `data-chart`-атрибут, inline-обработчики
+  (`confirm`, ссылка «Назад») заменены на классы `js-confirm`/`js-back` в `app.js`.
+- ✅ **Небезопасные схемы ссылок** — URL в карточке кликабелен только при `http(s)`,
+  иначе показывается как текст (`<code>`).
 - ✅ **CSRF** — same-origin guard для POST/PUT/PATCH/DELETE в `public/index.php`;
   доп. источники — `ALLOWED_ORIGINS`.
-- ✅ **Path traversal в `/media/{id}`** — `local_path` проверяется на принадлежность
-  `ALLOWED_MEDIA_DIRS`, иначе 403.
+- ✅ **Path traversal** — в `/media/{id}` `local_path` проверяется на принадлежность
+  `ALLOWED_MEDIA_DIRS` (иначе 403); имя кеш-файла из `file_unique_id`/расширения
+  санитизируется в `Telegram.php` (defense-in-depth).
 - ✅ **DoS через `q`** — длина поиска ограничена 200 символами (`mb_substr`).
-- ✅ **Без утечки трейсов** — `set_exception_handler` логирует ошибку и отдаёт общий 500.
+- ✅ **Без утечки трейсов** — `set_exception_handler` + `display_errors=0`: клиенту
+  общий 500, детали только в лог.
+- ✅ **Range-запросы** — `/media` отдаёт `206 Partial Content` (перемотка аудио/видео),
+  как FastAPI FileResponse.
+- ✅ **Command injection** — в `serve.php` `WEB_HOST` из `.env` экранируется
+  (`escapeshellarg`) перед запуском `php -S`.
+
+> Проверено вживую (PHP) на временной БД из `schema.sql`: security-заголовки и CSP
+> присутствуют, `/media` HTML-файла отдаётся `attachment`+`nosniff` (не исполняется),
+> Range → 206, `javascript:`-ссылка не превращается в `href`, XSS экранируется.
 
 **Что должен обеспечить оператор** — то же, что и в `../web`:
 авторизация отсутствует (слушать только `127.0.0.1` или ставить за nginx + auth + HTTPS),

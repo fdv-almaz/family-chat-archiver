@@ -37,6 +37,19 @@ set_exception_handler(function (Throwable $ex): void {
 Config::load();
 Db::ensureColumns();
 
+// Security-заголовки для всех ответов (defense-in-depth).
+// CSP строгая: только собственные ресурсы, без inline-скриптов и фреймов.
+// Inline-скрипт графика и inline-обработчик confirm вынесены в app.js
+// (данные передаются через data-атрибуты), поэтому 'unsafe-inline' не нужен.
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: same-origin');
+header(
+    "Content-Security-Policy: default-src 'self'; img-src 'self' data:; " .
+    "media-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; " .
+    "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+);
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
 
@@ -244,10 +257,60 @@ function route_media(int $mediaId): void
 
 function stream_file(string $path, string $mime): void
 {
+    $size = (int) filesize($path);
+
+    // Защита от MIME-sniffing XSS: запрещаем браузеру «угадывать» тип и
+    // отдаём inline только заведомо безопасные для воспроизведения типы.
+    // Остальное (в т.ч. SVG, который может нести скрипт) — только как вложение,
+    // чтобы исключить исполнение HTML/JS в нашем origin.
+    header('X-Content-Type-Options: nosniff');
+    $inline = $mime !== 'image/svg+xml'
+        && (preg_match('#^(image|audio|video)/#', $mime) === 1 || $mime === 'application/pdf');
+    header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment'));
     header('Content-Type: ' . $mime);
-    header('Content-Length: ' . filesize($path));
     header('Accept-Ranges: bytes');
-    readfile($path);
+
+    // Поддержка Range-запросов (перемотка аудио/видео), как в FastAPI FileResponse.
+    $start = 0;
+    $end = $size - 1;
+    $range = $_SERVER['HTTP_RANGE'] ?? '';
+    if ($range !== '' && preg_match('/^bytes=(\d*)-(\d*)$/', $range, $mm)) {
+        if ($mm[1] !== '') {
+            $start = (int) $mm[1];
+        }
+        if ($mm[2] !== '') {
+            $end = (int) $mm[2];
+        }
+        if ($size === 0 || $start > $end || $start >= $size) {
+            http_response_code(416);
+            header("Content-Range: bytes */$size");
+            return;
+        }
+        $end = min($end, $size - 1);
+        http_response_code(206);
+        header("Content-Range: bytes $start-$end/$size");
+    }
+
+    $length = $end - $start + 1;
+    header('Content-Length: ' . $length);
+
+    $fp = fopen($path, 'rb');
+    if ($fp === false) {
+        return;
+    }
+    if ($start > 0) {
+        fseek($fp, $start);
+    }
+    $remaining = $length;
+    while ($remaining > 0 && !feof($fp)) {
+        $chunk = fread($fp, (int) min(8192, $remaining));
+        if ($chunk === false) {
+            break;
+        }
+        echo $chunk;
+        $remaining -= strlen($chunk);
+    }
+    fclose($fp);
 }
 
 function redirect(string $location, int $code = 303): void

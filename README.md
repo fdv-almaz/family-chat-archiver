@@ -1,6 +1,6 @@
 # Family Chat Archiver
 
-**Версия 0.11.0** — см. [CHANGELOG.md](CHANGELOG.md) · [Авторы](CONTRIBUTORS.md)
+**Версия 0.11.1** — см. [CHANGELOG.md](CHANGELOG.md) · [Авторы](CONTRIBUTORS.md)
 
 Телеграм-бот для архивирования всех сообщений семейной группы с автоматической проверкой правописания русскоязычных текстов, плюс веб-интерфейс для просмотра и управления архивом.
 
@@ -272,15 +272,24 @@ TIP_HISTORY_LIMIT=30                    # сколько прошлых сове
 
 ## Безопасность
 
-Проект прошёл внутренний security-аудит (0.9.1). Внутри кода закрыто:
+Проект прошёл внутренние security-аудиты (0.9.1 и аудит обеих веб-реализаций).
+Меры действуют в обоих веб-интерфейсах (FastAPI `web/` и PHP `web-php/`) — внутри кода закрыто:
 
-- **SQL injection** — все запросы параметризованы.
-- **Path traversal** — `web/media/{id}` отдаёт файлы только из whitelist
-  (`ALLOWED_MEDIA_DIRS`).
-- **XSS** — Jinja2 autoescape принудительно включён.
+- **SQL injection** — все запросы параметризованы (Python `%s`, PHP PDO `?`).
+- **Path traversal** — `/media/{id}` отдаёт файлы только из whitelist
+  (`ALLOWED_MEDIA_DIRS`); имя кеш-файла санитизируется.
+- **XSS (stored)** — экранирование всего вывода (Jinja2 autoescape / PHP `e()`).
+- **MIME-sniffing XSS** — `/media` всегда с `X-Content-Type-Options: nosniff`;
+  inline только изображения/аудио/видео/PDF, остальное (включая HTML/SVG) — как
+  вложение (`Content-Disposition: attachment`).
+- **CSP и заголовки** — строгая `Content-Security-Policy` (`default-src 'self'`,
+  без inline-скриптов и фреймов), `X-Frame-Options: DENY` (clickjacking),
+  `Referrer-Policy: same-origin`.
+- **Небезопасные схемы ссылок** — кликабельны только `http(s)`-URL.
 - **CSRF** — same-origin guard для POST/DELETE (см. `ALLOWED_ORIGINS`).
 - **DoS через поиск** — `q` ограничен 200 символами.
 - **Лимит скачивания медиа** — 20 МБ (лимит Bot API).
+- **Без утечки трейсов** — ошибки отдаются как общий 500, детали только в лог.
 - **Секреты** — `.env` в `.gitignore`, токены не пишутся в логи.
 
 Что обязан обеспечить оператор:

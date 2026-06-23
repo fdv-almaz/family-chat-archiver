@@ -2,7 +2,7 @@
 {% block title %}Сообщение #{{ msg.message_id }}{% endblock %}
 {% block content %}
 
-<p><a href="javascript:history.back()">← Назад</a></p>
+<p><a href="/" class="js-back">← Назад</a></p>
 
 <article class="message-detail {% if msg.deleted_at %}deleted-row{% endif %}">
   <header>
@@ -51,7 +51,7 @@
   {% if msg.links %}
     <h3>Ссылки</h3>
     <ul>
-      {% for l in msg.links %}<li><a href="{{ l.url }}" rel="noopener" target="_blank">{{ l.url }}</a></li>{% endfor %}
+      {% for l in msg.links %}<li>{% if l.url and (l.url.startswith('http://') or l.url.startswith('https://')) %}<a href="{{ l.url }}" rel="noopener noreferrer" target="_blank">{{ l.url }}</a>{% else %}<code>{{ l.url }}</code>{% endif %}</li>{% endfor %}
     </ul>
   {% endif %}
 
@@ -71,7 +71,7 @@
         <button type="submit">↩ Восстановить</button>
       </form>
       <form method="post" action="/message/{{ msg.message_id }}/hard-delete"
-            onsubmit="return confirm('Удалить #{{ msg.message_id }} БЕЗВОЗВРАТНО? Связанные медиа, ссылки и подсказки тоже удалятся.')">
+            class="js-confirm" data-confirm="Удалить #{{ msg.message_id }} БЕЗВОЗВРАТНО? Связанные медиа, ссылки и подсказки тоже удалятся.">
         <button type="submit" class="danger">⚠ Удалить окончательно</button>
       </form>
     {% else %}

@@ -13,14 +13,8 @@
 </div>
 
 <h2>Сообщения за 30 дней</h2>
-<canvas id="chart" height="180"></canvas>
-<script>
-window.__chartData = [
-  {% for r in messages_per_day %}
-  { day: "{{ r.day }}", count: {{ r.c }} }{% if not loop.last %},{% endif %}
-  {% endfor %}
-];
-</script>
+{# Данные графика — через data-атрибут (без inline-скрипта, требование CSP). #}
+<canvas id="chart" height="180" data-chart='{{ chart_data | tojson }}'></canvas>
 
 <div class="two-col">
   <section>
