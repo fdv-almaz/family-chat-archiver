@@ -4,6 +4,18 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.10.3] — 2026-06-23
+
+### Добавлено
+- **Бот (Python и Rust): антиповтор «совета дня».** Перед генерацией бот
+  подгружает из БД последние `TIP_HISTORY_LIMIT` (по умолчанию 30) уже
+  отправленных советов этого чата (`sent_to_chat = TRUE`) и передаёт их модели
+  с явной инструкцией не повторять их — ни по теме, ни по содержанию, ни по
+  формулировке. `TIP_HISTORY_LIMIT=0` отключает передачу истории. История
+  привязана к `chat_id` (учитываются советы именно того чата, куда уходит совет).
+  - Python: `db.get_recent_tips`, `config.TIP_HISTORY_LIMIT`.
+  - Rust: `DbPool::get_recent_tips`, `Config::tip_history_limit`.
+
 ## [0.10.2] — 2026-06-23
 
 ### Изменено

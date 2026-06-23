@@ -365,6 +365,37 @@ def get_most_active_chat_id():
         cursor.close()
         conn.close()
 
+def get_recent_tips(chat_id, limit):
+    """Return up to `limit` most recent successfully-sent tip texts for a chat.
+
+    Used to feed previous tips back into the prompt so the model doesn't repeat
+    them. Newest first. Only delivered tips (sent_to_chat) with a non-empty
+    response are considered.
+    """
+    if not limit or limit <= 0:
+        return []
+    db = DBPool()
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT response
+            FROM daily_tips
+            WHERE chat_id = %s
+              AND sent_to_chat = TRUE
+              AND response IS NOT NULL
+              AND response <> ''
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, (chat_id, int(limit)))
+        return [row[0] for row in cursor.fetchall()]
+    except Error as e:
+        logger.error(f'Failed to fetch recent daily tips: {e}')
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
 def insert_daily_tip(chat_id, model, prompt, response, sent_to_chat, error=None):
     """Persist a daily-tip request/response pair (and its delivery status)."""
     db = DBPool()

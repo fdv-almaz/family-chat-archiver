@@ -174,6 +174,28 @@ impl DbPool {
         Ok(row)
     }
 
+    /// До `limit` последних успешно отправленных советов чата (новые сверху).
+    /// Передаются модели как «уже было», чтобы она не повторялась.
+    pub async fn get_recent_tips(&self, chat_id: i64, limit: u32) -> Result<Vec<String>> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let mut conn = self.get_connection()?;
+        let rows: Vec<String> = conn
+            .exec(
+                "SELECT response FROM daily_tips
+                 WHERE chat_id = ?
+                   AND sent_to_chat = TRUE
+                   AND response IS NOT NULL
+                   AND response <> ''
+                 ORDER BY created_at DESC
+                 LIMIT ?",
+                (chat_id, limit),
+            )
+            .map_err(|e| Error::Database(format!("Failed to fetch recent daily tips: {}", e)))?;
+        Ok(rows)
+    }
+
     /// Сохранить запрос/ответ совета дня и статус отправки.
     pub async fn insert_daily_tip(
         &self,

@@ -40,6 +40,8 @@ TIP_CHAT_ID = int(_TIP_CHAT_ID_RAW) if _TIP_CHAT_ID_RAW else None
 # Время рассылки (локальное), по умолчанию 06:00.
 TIP_HOUR = int(os.getenv('TIP_HOUR', '6'))
 TIP_MINUTE = int(os.getenv('TIP_MINUTE', '0'))
+# Сколько последних советов передавать модели как «уже было», чтобы не повторяться.
+TIP_HISTORY_LIMIT = int(os.getenv('TIP_HISTORY_LIMIT', '30'))
 
 # Системный промпт совета дня вынесен в конфигурационный файл (а не в код),
 # чтобы его можно было править без пересборки/правки исходников. Путь к файлу —

@@ -70,9 +70,28 @@ fn seconds_until(hour: u32, minute: u32) -> u64 {
     (target - now).num_seconds().max(0) as u64
 }
 
-/// User-турн с текущей датой — чтобы советы не повторялись день ото дня.
-fn build_user_prompt() -> String {
-    format!("Сегодня {}. Пришли совет дня.", Local::now().format("%Y-%m-%d"))
+/// User-турн с текущей датой и списком уже отправленных советов.
+///
+/// `previous_tips` — тексты ранее отправленных советов (новые сверху). Они
+/// передаются модели с явной инструкцией не повторять их (ни по теме, ни по
+/// формулировке), чтобы советы не дублировались.
+fn build_user_prompt(previous_tips: &[String]) -> String {
+    let mut prompt = format!("Сегодня {}. Пришли совет дня.", Local::now().format("%Y-%m-%d"));
+    if !previous_tips.is_empty() {
+        let listed = previous_tips
+            .iter()
+            .enumerate()
+            .map(|(i, t)| format!("{}. {}", i + 1, t))
+            .collect::<Vec<_>>()
+            .join("\n");
+        prompt.push_str(&format!(
+            "\n\nЭти советы уже были отправлены ранее — НЕ повторяй их \
+             (ни по теме, ни по содержанию, ни по формулировке), предложи \
+             что-то новое:\n{}",
+            listed
+        ));
+    }
+    prompt
 }
 
 /// Сгенерировать и отправить один совет; сохранить запрос/ответ в БД.
@@ -105,7 +124,8 @@ pub async fn run_once(bot: &Bot, db: &DbPool, cfg: &Config, chat_override: Optio
         },
     };
 
-    let user_prompt = build_user_prompt();
+    let previous_tips = db.get_recent_tips(chat_id, cfg.tip_history_limit).await?;
+    let user_prompt = build_user_prompt(&previous_tips);
     let full_prompt = format!("{}\n\n---\n{}", cfg.tip_system_prompt, user_prompt);
 
     // 1) Сгенерировать совет

@@ -29,6 +29,7 @@ pub struct Config {
     pub tip_hour: u32,
     pub tip_minute: u32,
     pub tip_system_prompt: String,
+    pub tip_history_limit: u32,
 }
 
 impl Config {
@@ -80,6 +81,10 @@ impl Config {
             tip_hour: env::var("TIP_HOUR").ok().and_then(|s| s.parse().ok()).unwrap_or(6),
             tip_minute: env::var("TIP_MINUTE").ok().and_then(|s| s.parse().ok()).unwrap_or(0),
             tip_system_prompt: Self::load_system_prompt(),
+            tip_history_limit: env::var("TIP_HISTORY_LIMIT")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(30),
         })
     }
 

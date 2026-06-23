@@ -18,7 +18,7 @@ import anthropic
 from telebot.apihelper import ApiException
 
 import config
-from db import get_most_active_chat_id, insert_daily_tip
+from db import get_most_active_chat_id, get_recent_tips, insert_daily_tip
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +30,22 @@ logger = logging.getLogger(__name__)
 TIP_HEADER = "💡 <b>Совет дня</b>\n\n"
 
 
-def build_user_prompt() -> str:
-    """User-турн с текущей датой — чтобы советы не повторялись день ото дня."""
-    return f"Сегодня {date.today().isoformat()}. Пришли совет дня."
+def build_user_prompt(previous_tips=None) -> str:
+    """User-турн с текущей датой и списком уже отправленных советов.
+
+    `previous_tips` — тексты ранее отправленных советов (новые сверху). Они
+    передаются модели с явной инструкцией не повторять их (ни по теме, ни по
+    формулировке), чтобы советы не дублировались.
+    """
+    prompt = f"Сегодня {date.today().isoformat()}. Пришли совет дня."
+    if previous_tips:
+        listed = "\n".join(f"{i}. {t}" for i, t in enumerate(previous_tips, 1))
+        prompt += (
+            "\n\nЭти советы уже были отправлены ранее — НЕ повторяй их "
+            "(ни по теме, ни по содержанию, ни по формулировке), предложи "
+            f"что-то новое:\n{listed}"
+        )
+    return prompt
 
 
 def generate_tip(user_prompt: str) -> str:
@@ -77,7 +90,8 @@ def run_once(bot, chat_id=None) -> bool:
                      '(TIP_CHAT_ID не задан и в БД нет групповых чатов)')
         return False
 
-    user_prompt = build_user_prompt()
+    previous_tips = get_recent_tips(chat_id, config.TIP_HISTORY_LIMIT)
+    user_prompt = build_user_prompt(previous_tips)
     full_prompt = f"{config.TIP_SYSTEM_PROMPT}\n\n---\n{user_prompt}"
 
     # 1) Сгенерировать совет
