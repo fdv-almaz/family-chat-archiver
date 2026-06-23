@@ -52,7 +52,7 @@ cargo clippy             # Линтер
 - `generate_tip()`: POST к `api.anthropic.com/v1/messages` с заголовками `x-api-key` / `anthropic-version`
 - `seconds_until()`: расчёт времени до ближайшего срабатывания (локальное время, `chrono`)
 - Чат: `tip_chat_id` или `db.get_most_active_chat_id()` (самый активный групповой чат)
-- `SYSTEM_PROMPT` учитывает, что в чате есть и дети, и взрослые
+- Системный промпт вынесен в конфигурационный файл `daily_tip_prompt.txt` (корень проекта; путь переопределяется `TIP_SYSTEM_PROMPT_FILE`) и читается в `Config::tip_system_prompt` — правится без пересборки; учитывает, что в чате есть и дети, и взрослые. Если файл недоступен — встроенный fallback + предупреждение в stderr
 
 ### db/pool.rs
 - `DbPool`: `Arc<mysql::Pool>` для shared use
@@ -108,6 +108,7 @@ ANTHROPIC_MODEL=claude-opus-4-8  # модель Claude
 TIP_CHAT_ID=                   # чат рассылки; пусто → самый активный групповой чат из БД
 TIP_HOUR=6                     # время рассылки (локальное)
 TIP_MINUTE=0
+TIP_SYSTEM_PROMPT_FILE=../daily_tip_prompt.txt  # файл системного промпта (правится без пересборки)
 ```
 
 ## Замечания

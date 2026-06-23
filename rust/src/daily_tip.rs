@@ -22,24 +22,9 @@ use crate::error::{Error, Result};
 const ANTHROPIC_API: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 
-// Учитываем, что в чате есть и взрослые, и дети: совет должен быть безопасным
-// для любого возраста и не затрагивать неподходящие темы.
-const SYSTEM_PROMPT: &str = concat!(
-    "Ты — добрый помощник в семейном групповом чате. В чате есть и взрослые, ",
-    "и дети. Каждое утро ты присылаешь короткий «совет дня».\n\n",
-    "Правила:\n",
-    "- Пиши только по-русски, тепло и дружелюбно, на «вы» ко всем сразу.\n",
-    "- Один совет за раз, 2–5 предложений.\n",
-    "- Темы: полезные привычки, быт и уют, здоровье и движение, учёба и ",
-    "развитие, добрые отношения в семье, безопасность, любопытный факт.\n",
-    "- Совет должен быть безопасным и понятным для всех возрастов, включая ",
-    "детей.\n",
-    "- Не затрагивай темы, не подходящие детям: политику, религиозные споры, ",
-    "конкретные лекарства и медицинские предписания, финансовые риски и ",
-    "инвестиции, любой контент 18+.\n",
-    "- Не используй Markdown-разметку и эмодзи.\n",
-    "- Не пиши вступлений вроде «Вот совет дня» — сразу сам совет."
-);
+// Системный промпт вынесен в конфигурационный файл (см. Config::tip_system_prompt
+// и daily_tip_prompt.txt в корне проекта) — учитывает, что в чате есть и взрослые,
+// и дети: совет должен быть безопасным для любого возраста.
 
 // Маркер перед текстом, чтобы в чате было понятно, что это совет дня.
 const TIP_HEADER: &str = "💡 <b>Совет дня</b>\n\n";
@@ -121,10 +106,10 @@ pub async fn run_once(bot: &Bot, db: &DbPool, cfg: &Config, chat_override: Optio
     };
 
     let user_prompt = build_user_prompt();
-    let full_prompt = format!("{}\n\n---\n{}", SYSTEM_PROMPT, user_prompt);
+    let full_prompt = format!("{}\n\n---\n{}", cfg.tip_system_prompt, user_prompt);
 
     // 1) Сгенерировать совет
-    let tip = match generate_tip(api_key, &cfg.anthropic_model, &user_prompt).await {
+    let tip = match generate_tip(api_key, &cfg.anthropic_model, &cfg.tip_system_prompt, &user_prompt).await {
         Ok(t) => t,
         Err(e) => {
             db.insert_daily_tip(chat_id, &cfg.anthropic_model, &full_prompt,
@@ -162,12 +147,12 @@ pub async fn run_once(bot: &Bot, db: &DbPool, cfg: &Config, chat_override: Optio
 }
 
 /// Запросить совет у Claude через Messages API и вернуть текст.
-async fn generate_tip(api_key: &str, model: &str, user_prompt: &str) -> Result<String> {
+async fn generate_tip(api_key: &str, model: &str, system_prompt: &str, user_prompt: &str) -> Result<String> {
     let client = Client::new();
     let body = json!({
         "model": model,
         "max_tokens": 1024,
-        "system": SYSTEM_PROMPT,
+        "system": system_prompt,
         "messages": [{ "role": "user", "content": user_prompt }],
     });
 

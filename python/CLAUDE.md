@@ -58,7 +58,7 @@ mysql -u root -p < ../schema.sql
 - `start_scheduler(bot)` — запускает демон-поток, который спит до `TIP_HOUR:TIP_MINUTE` и шлёт совет; вызывается из `bot.py::main()`. Без `ANTHROPIC_API_KEY` тихо выходит (фича выключена)
 - `run_once(bot, chat_id=None)` — генерирует совет через `anthropic` SDK (`config.ANTHROPIC_MODEL`), шлёт в чат (текст экранируется, т.к. бот в режиме HTML), сохраняет запрос+ответ в `daily_tips`. `chat_id` переопределяет чат (для команды `/check_tip`)
 - `resolve_chat_id()` — `TIP_CHAT_ID` или самый активный групповой чат из БД (`db.get_most_active_chat_id`)
-- `SYSTEM_PROMPT` — учитывает, что в чате есть и дети, и взрослые (безопасные темы)
+- Системный промпт вынесен в конфигурационный файл `daily_tip_prompt.txt` (корень проекта; путь переопределяется `TIP_SYSTEM_PROMPT_FILE`) и читается в `config.TIP_SYSTEM_PROMPT` — правится без изменения кода; учитывает, что в чате есть и дети, и взрослые (безопасные темы). Если файл недоступен — встроенный fallback + предупреждение в лог
 - Команда `/check_tip` (`/tip`) в `bot.py::handle_check_tip` — ручной запуск в текущий чат
 - `python daily_tip.py` — ручной разовый запуск из CLI (без ожидания расписания)
 
@@ -111,4 +111,5 @@ ANTHROPIC_MODEL=claude-opus-4-8    # модель Claude
 TIP_CHAT_ID=                       # чат рассылки; пусто → самый активный групповой чат из БД
 TIP_HOUR=6                         # время рассылки (локальное)
 TIP_MINUTE=0
+TIP_SYSTEM_PROMPT_FILE=../daily_tip_prompt.txt  # файл системного промпта (правится без кода)
 ```

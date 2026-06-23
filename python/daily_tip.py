@@ -22,24 +22,9 @@ from db import get_most_active_chat_id, insert_daily_tip
 
 logger = logging.getLogger(__name__)
 
-# Учитываем, что в чате есть и взрослые, и дети: совет должен быть безопасным
-# для любого возраста и не затрагивать неподходящие темы.
-SYSTEM_PROMPT = (
-    "Ты — добрый помощник в семейном групповом чате. В чате есть и взрослые, "
-    "и дети. Каждое утро ты присылаешь короткий «совет дня».\n\n"
-    "Правила:\n"
-    "- Пиши только по-русски, тепло и дружелюбно, на «вы» ко всем сразу.\n"
-    "- Один совет за раз, 2–5 предложений.\n"
-    "- Темы: полезные привычки, быт и уют, здоровье и движение, учёба и "
-    "развитие, добрые отношения в семье, безопасность, любопытный факт.\n"
-    "- Совет должен быть безопасным и понятным для всех возрастов, включая "
-    "детей.\n"
-    "- Не затрагивай темы, не подходящие детям: политику, религиозные споры, "
-    "конкретные лекарства и медицинские предписания, финансовые риски и "
-    "инвестиции, любой контент 18+.\n"
-    "- Не используй Markdown-разметку и эмодзи.\n"
-    "- Не пиши вступлений вроде «Вот совет дня» — сразу сам совет."
-)
+# Системный промпт вынесен в конфигурационный файл (см. config.TIP_SYSTEM_PROMPT
+# и daily_tip_prompt.txt в корне проекта) — учитывает, что в чате есть и взрослые,
+# и дети: совет должен быть безопасным для любого возраста.
 
 # Маркер перед текстом, чтобы в чате было понятно, что это совет дня.
 TIP_HEADER = "💡 <b>Совет дня</b>\n\n"
@@ -56,7 +41,7 @@ def generate_tip(user_prompt: str) -> str:
     response = client.messages.create(
         model=config.ANTHROPIC_MODEL,
         max_tokens=1024,
-        system=SYSTEM_PROMPT,
+        system=config.TIP_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_prompt}],
     )
     parts = [block.text for block in response.content if block.type == "text"]
@@ -93,7 +78,7 @@ def run_once(bot, chat_id=None) -> bool:
         return False
 
     user_prompt = build_user_prompt()
-    full_prompt = f"{SYSTEM_PROMPT}\n\n---\n{user_prompt}"
+    full_prompt = f"{config.TIP_SYSTEM_PROMPT}\n\n---\n{user_prompt}"
 
     # 1) Сгенерировать совет
     try:

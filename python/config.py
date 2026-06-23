@@ -41,6 +41,34 @@ TIP_CHAT_ID = int(_TIP_CHAT_ID_RAW) if _TIP_CHAT_ID_RAW else None
 TIP_HOUR = int(os.getenv('TIP_HOUR', '6'))
 TIP_MINUTE = int(os.getenv('TIP_MINUTE', '0'))
 
+# Системный промпт совета дня вынесен в конфигурационный файл (а не в код),
+# чтобы его можно было править без пересборки/правки исходников. Путь к файлу —
+# TIP_SYSTEM_PROMPT_FILE; относительный путь привязывается к корню проекта
+# (на уровень выше python/), по умолчанию — общий для Python и Rust
+# `daily_tip_prompt.txt`.
+TIP_SYSTEM_PROMPT_FILE = os.getenv('TIP_SYSTEM_PROMPT_FILE', '../daily_tip_prompt.txt')
+if not os.path.isabs(TIP_SYSTEM_PROMPT_FILE):
+    TIP_SYSTEM_PROMPT_FILE = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), TIP_SYSTEM_PROMPT_FILE))
+# Минимальный безопасный fallback на случай, если файл промпта недоступен —
+# чтобы фича не падала; о проблеме предупреждаем в лог.
+_TIP_PROMPT_FALLBACK = (
+    'Ты — добрый помощник в семейном чате, где есть и взрослые, и дети. '
+    'Пришли один короткий безопасный для всех возрастов «совет дня» по-русски, '
+    'без Markdown и эмодзи, без вступлений.'
+)
+try:
+    with open(TIP_SYSTEM_PROMPT_FILE, encoding='utf-8') as _pf:
+        TIP_SYSTEM_PROMPT = _pf.read().strip()
+    if not TIP_SYSTEM_PROMPT:
+        raise ValueError('файл промпта пуст')
+except (OSError, ValueError) as _e:
+    TIP_SYSTEM_PROMPT = _TIP_PROMPT_FALLBACK
+    if ANTHROPIC_API_KEY:
+        logging.getLogger(__name__).warning(
+            'Не удалось прочитать файл системного промпта %s (%s) — '
+            'использую встроенный fallback', TIP_SYSTEM_PROMPT_FILE, _e)
+
 # Where to store downloaded media files (Telegram limit is ~20 MB per download via Bot API).
 # A relative path is anchored to this module's directory (python/), NOT the current
 # working directory — so files always land in python/storage regardless of how the bot

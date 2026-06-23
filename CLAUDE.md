@@ -102,6 +102,7 @@ ANTHROPIC_MODEL=claude-opus-4-8   # модель Claude для совета
 TIP_CHAT_ID=                      # чат рассылки; пусто → самый активный групповой чат из БД
 TIP_HOUR=6                        # время рассылки (локальное)
 TIP_MINUTE=0
+TIP_SYSTEM_PROMPT_FILE=../daily_tip_prompt.txt  # файл системного промпта (общий для Python и Rust)
 ```
 
 См. `.env.example` в каждой реализации.

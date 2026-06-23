@@ -28,6 +28,7 @@ pub struct Config {
     pub tip_chat_id: Option<i64>,
     pub tip_hour: u32,
     pub tip_minute: u32,
+    pub tip_system_prompt: String,
 }
 
 impl Config {
@@ -78,7 +79,49 @@ impl Config {
             tip_chat_id: env::var("TIP_CHAT_ID").ok().and_then(|s| s.trim().parse().ok()),
             tip_hour: env::var("TIP_HOUR").ok().and_then(|s| s.parse().ok()).unwrap_or(6),
             tip_minute: env::var("TIP_MINUTE").ok().and_then(|s| s.parse().ok()).unwrap_or(0),
+            tip_system_prompt: Self::load_system_prompt(),
         })
+    }
+
+    /// Системный промпт совета дня вынесен в конфигурационный файл (а не в код),
+    /// чтобы его можно было править без пересборки. Путь задаётся
+    /// `TIP_SYSTEM_PROMPT_FILE`; относительный путь привязывается к корню проекта
+    /// (на уровень выше крейта `rust/`), по умолчанию — общий для Python и Rust
+    /// `daily_tip_prompt.txt`. Если файл недоступен — встроенный fallback,
+    /// чтобы фича не падала (с предупреждением в лог).
+    fn load_system_prompt() -> String {
+        const FALLBACK: &str = concat!(
+            "Ты — добрый помощник в семейном чате, где есть и взрослые, и дети. ",
+            "Пришли один короткий безопасный для всех возрастов «совет дня» по-русски, ",
+            "без Markdown и эмодзи, без вступлений."
+        );
+
+        let raw = env::var("TIP_SYSTEM_PROMPT_FILE")
+            .unwrap_or_else(|_| "../daily_tip_prompt.txt".to_string());
+        let path = if std::path::Path::new(&raw).is_absolute() {
+            std::path::PathBuf::from(&raw)
+        } else {
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(&raw)
+        };
+
+        match std::fs::read_to_string(&path) {
+            Ok(s) if !s.trim().is_empty() => s.trim().to_string(),
+            Ok(_) => {
+                eprintln!(
+                    "ВНИМАНИЕ: файл системного промпта {} пуст — использую встроенный fallback",
+                    path.display()
+                );
+                FALLBACK.to_string()
+            }
+            Err(e) => {
+                eprintln!(
+                    "ВНИМАНИЕ: не удалось прочитать файл системного промпта {} ({}) — использую встроенный fallback",
+                    path.display(),
+                    e
+                );
+                FALLBACK.to_string()
+            }
+        }
     }
 
     /// Resolve the media storage directory. A relative `MEDIA_STORAGE_DIR`
