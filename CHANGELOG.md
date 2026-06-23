@@ -4,6 +4,22 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [0.11.0] — 2026-06-23
+
+### Добавлено
+- **Web на PHP (`web-php/`): функциональная копия FastAPI-веба** на чистом PHP 8 + PDO
+  (без фреймворков и Composer). Повторяет все маршруты (`/`, `/message/{id}`,
+  POST `delete`/`restore`/`hard-delete`, `/users`, `/stats`, `/corrections`, `/tips`,
+  `/media/{id}`, `/api/stats/per-day`), фильтры, пагинацию, инлайн-плеер/миниатюры,
+  маркеры удалённых и орфо-исправлений (✏️ с подсказкой), бар-чарт статистики.
+  Работает с той же MySQL; можно запускать вместо или одновременно с Python-вебом.
+  - Модель безопасности сохранена: prepared statements (SQL injection), экранирование
+    вывода `e()` (XSS), same-origin guard (CSRF), whitelist путей для `/media` (path
+    traversal), лимит длины поиска 200 символов, общий 500 без утечки трейсов.
+  - Структура зеркалит Python: `src/Config.php`, `src/Db.php`, `src/Telegram.php`,
+    `src/helpers.php`, `public/index.php` (роутер), `templates/*.php`, `serve.php`.
+  - Требует PHP 8.0+ с `pdo_mysql`, `curl`, `mbstring`. Запуск: `php serve.php`.
+
 ## [0.10.3] — 2026-06-23
 
 ### Добавлено

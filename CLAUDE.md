@@ -26,12 +26,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 family-chat-archiver/
 ├── python/          # Python реализация бота (pyTelegramBotAPI)
 ├── rust/            # Rust реализация бота (teloxide)
-├── web/             # Веб-интерфейс просмотра/поиска/управления (FastAPI)
+├── web/             # Веб-интерфейс просмотра/поиска/управления (FastAPI, Python)
+├── web-php/         # Тот же веб-интерфейс на PHP (PDO, без фреймворков) — функциональная копия web/
 ├── schema.sql       # Схема БД (опционально для ручного создания)
 └── CLAUDE.md        # Этот файл
 ```
 
-Каждая папка содержит свой CLAUDE.md с деталями. Все три модуля работают с одной MySQL.
+Каждая папка содержит свой CLAUDE.md с деталями. Все модули работают с одной MySQL.
+`web/` (FastAPI) и `web-php/` (PHP) — две независимые реализации одного просмотрщика;
+запускать можно любую (или обе одновременно — updates они не потребляют).
 
 ## Общая архитектура
 

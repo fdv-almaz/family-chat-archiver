@@ -13,6 +13,11 @@ rust/storage/
 
 # Web media cache (fallback when bot didn't download)
 web/media_cache/
+web-php/media_cache/*
+!web-php/media_cache/.gitkeep
+
+# PHP
+web-php/vendor/
 
 # Python
 __pycache__/
