@@ -4,7 +4,7 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
-## [Не выпущено]
+## [0.12.0] — 2026-06-26
 
 ### Добавлено
 - **Разовая генерация «совета дня» из CLI без Telegram** — отдельный скрипт для
