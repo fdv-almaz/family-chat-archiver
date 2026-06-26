@@ -6,6 +6,8 @@
 rust/
 ├── src/
 │   ├── main.rs              # Entry point, dispatcher, handlers, запуск планировщика
+│   ├── bin/
+│   │   └── generate_tip.rs  # Второй бинарник: разовая генерация совета из CLI (без Telegram)
 │   ├── config.rs            # Config + SpellingVisibility enum
 │   ├── daily_tip.rs         # «Совет дня»: планировщик (tokio) + генерация через Claude API
 │   ├── error.rs             # Error типы
@@ -28,11 +30,15 @@ rust/
 ## Команды разработки
 
 ```bash
-cargo build --release    # Сборка
-cargo run                # Запуск (для разработки)
+cargo build --release    # Сборка (оба бинарника: family-chat-archiver и generate_tip)
+cargo run                # Запуск бота (для разработки)
+cargo run --bin generate_tip   # Разовая генерация совета в stdout (без Telegram)
 cargo test               # Тесты
 cargo clippy             # Линтер
 ```
+
+Крейт собирает **два бинарника** (см. `[[bin]]` в `Cargo.toml`): основной бот
+`family-chat-archiver` и вспомогательный `generate_tip`.
 
 ## Основные компоненты
 
@@ -54,6 +60,18 @@ cargo clippy             # Линтер
 - Чат: `tip_chat_id` или `db.get_most_active_chat_id()` (самый активный групповой чат)
 - Антиповтор: перед генерацией берёт последние `tip_history_limit` отправленных советов (`db.get_recent_tips`) и передаёт их модели в запросе с инструкцией не повторяться
 - Системный промпт вынесен в конфигурационный файл `daily_tip_prompt.txt` (корень проекта; путь переопределяется `TIP_SYSTEM_PROMPT_FILE`) и читается в `Config::tip_system_prompt` — правится без пересборки; учитывает, что в чате есть и дети, и взрослые. Если файл недоступен — встроенный fallback + предупреждение в stderr
+
+### bin/generate_tip.rs
+- Второй бинарник (`cargo run --bin generate_tip`) для **разовой генерации совета
+  без Telegram**: повторяет логику `daily_tip::run_once`, но не зависит от teloxide-бота —
+  печатает совет в stdout
+- Переиспользует исходники бота напрямую через `#[path]` (`config.rs`, `error.rs`,
+  `db/mod.rs`, `daily_tip.rs`) — логика не дублируется; `daily_tip::build_user_prompt`
+  и `daily_tip::generate_tip` для этого сделаны `pub`
+- Тот же выбор чата (`TIP_CHAT_ID`/самый активный) и антиповтор (`db.get_recent_tips`),
+  что и у бота. Флаги: `--chat-id <ID>`, `--no-history`, `--save` (запись в `daily_tips`,
+  `sent_to_chat=false`). По умолчанию БД только читается
+- Аргументы разбираются вручную (без `clap`) — новых зависимостей не добавляет
 
 ### db/pool.rs
 - `DbPool`: `Arc<mysql::Pool>` для shared use

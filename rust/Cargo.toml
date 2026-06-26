@@ -25,3 +25,9 @@ chrono = "0.4"
 [[bin]]
 name = "family-chat-archiver"
 path = "src/main.rs"
+
+# Самостоятельная разовая генерация «совета дня» через Claude (без Telegram).
+# Переиспользует модули бота (config/db/daily_tip) через #[path], не дублируя логику.
+[[bin]]
+name = "generate_tip"
+path = "src/bin/generate_tip.rs"

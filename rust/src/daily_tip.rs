@@ -75,7 +75,7 @@ fn seconds_until(hour: u32, minute: u32) -> u64 {
 /// `previous_tips` — тексты ранее отправленных советов (новые сверху). Они
 /// передаются модели с явной инструкцией не повторять их (ни по теме, ни по
 /// формулировке), чтобы советы не дублировались.
-fn build_user_prompt(previous_tips: &[String]) -> String {
+pub fn build_user_prompt(previous_tips: &[String]) -> String {
     let mut prompt = format!("Сегодня {}. Пришли совет дня.", Local::now().format("%Y-%m-%d"));
     if !previous_tips.is_empty() {
         let listed = previous_tips
@@ -167,7 +167,7 @@ pub async fn run_once(bot: &Bot, db: &DbPool, cfg: &Config, chat_override: Optio
 }
 
 /// Запросить совет у Claude через Messages API и вернуть текст.
-async fn generate_tip(api_key: &str, model: &str, system_prompt: &str, user_prompt: &str) -> Result<String> {
+pub async fn generate_tip(api_key: &str, model: &str, system_prompt: &str, user_prompt: &str) -> Result<String> {
     let client = Client::new();
     let body = json!({
         "model": model,

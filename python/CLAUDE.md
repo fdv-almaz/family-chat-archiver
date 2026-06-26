@@ -9,6 +9,7 @@ python/
 ├── db.py               # MySQL pool, миграции, CRUD-функции
 ├── spelling.py         # YandexSpeller API + форматирование подсказок
 ├── daily_tip.py        # «Совет дня»: фоновый планировщик + генерация через Claude API
+├── generate_tip.py     # Разовая генерация совета из CLI (без Telegram) — печатает в stdout
 ├── media_storage.py    # Скачивание Telegram-файлов в локальное хранилище
 ├── storage/            # Скачанные файлы (file_unique_id + расширение)
 ├── logs/               # Файловые логи с ежедневной ротацией
@@ -62,7 +63,18 @@ mysql -u root -p < ../schema.sql
 - Антиповтор: перед генерацией берёт последние `TIP_HISTORY_LIMIT` отправленных советов чата (`db.get_recent_tips`) и передаёт их модели в запросе с инструкцией не повторяться
 - Системный промпт вынесен в конфигурационный файл `daily_tip_prompt.txt` (корень проекта; путь переопределяется `TIP_SYSTEM_PROMPT_FILE`) и читается в `config.TIP_SYSTEM_PROMPT` — правится без изменения кода; учитывает, что в чате есть и дети, и взрослые (безопасные темы). Если файл недоступен — встроенный fallback + предупреждение в лог
 - Команда `/check_tip` (`/tip`) в `bot.py::handle_check_tip` — ручной запуск в текущий чат
-- `python daily_tip.py` — ручной разовый запуск из CLI (без ожидания расписания)
+- `python daily_tip.py` — ручной разовый запуск из CLI (без ожидания расписания; шлёт в чат через TeleBot)
+
+### generate_tip.py
+- Самостоятельный CLI-скрипт для **разовой генерации совета без Telegram**: повторяет
+  логику `daily_tip.run_once`, но не зависит от `TeleBot` — печатает совет в stdout
+- Переиспользует код бота напрямую (`config`, `db`, `daily_tip`): тот же системный и
+  user-промпт, тот же выбор чата (`resolve_chat_id`), тот же антиповтор
+  (`db.get_recent_tips`) — логика не дублируется
+- Флаги: `--chat-id <ID>` (чат для истории; по умолчанию как у бота), `--no-history`
+  (без антиповтора), `--save` (сохранить пару запрос/ответ в `daily_tips`,
+  `sent_to_chat=False`). По умолчанию БД только читается
+- Запуск из каталога `python/` (рядом тот же `.env`): `python generate_tip.py`
 
 ### spelling.py
 - `check_spelling()` — POST к `speller.yandex.net/services/spellservice.json/checkText` с retry и backoff

@@ -19,6 +19,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    советов передаются модели с инструкцией не дублировать их.
    Команда `/check_tip` (или `/tip`) — ручной запуск: сразу генерирует совет и шлёт
    его в текущий чат (для проверки, без ожидания расписания).
+   Разовая генерация **без Telegram** (печать в stdout) — отдельные скрипты в обеих
+   реализациях: `python/generate_tip.py` и `cargo run --bin generate_tip` (Rust).
+   Берут данные из БД тем же способом, что и бот.
 
 ## Структура
 

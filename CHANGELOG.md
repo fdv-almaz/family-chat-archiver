@@ -4,6 +4,19 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
 проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [Не выпущено]
+
+### Добавлено
+- **Разовая генерация «совета дня» из CLI без Telegram** — отдельный скрипт для
+  обеих реализаций, повторяющий логику бота: `python/generate_tip.py` (Python) и
+  бинарник `generate_tip` в `rust/` (`cargo run --bin generate_tip`). Берёт данные
+  из той же БД тем же способом (выбор чата `TIP_CHAT_ID`/самый активный,
+  антиповтор по последним `TIP_HISTORY_LIMIT` советам), строит тот же системный и
+  user-промпт и делает тот же запрос к Claude, но не зависит от Telegram — просто
+  печатает совет в stdout. Флаги: `--chat-id`, `--no-history`, `--save` (сохранить
+  в `daily_tips`). Код бота переиспользуется без дублирования (Python — импорт
+  модулей; Rust — второй `[[bin]]`, подключающий те же модули через `#[path]`).
+
 ## [0.11.1] — 2026-06-23
 
 Security-релиз. Аудит обеих веб-реализаций (`web/` FastAPI и `web-php/` PHP);
